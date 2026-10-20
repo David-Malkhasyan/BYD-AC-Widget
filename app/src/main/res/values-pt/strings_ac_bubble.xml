@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">Botão do A/C</string>
+    <string name="ac_bubble_enable_label">Botão flutuante do A/C</string>
+    <string name="ac_bubble_enable_desc">Um pequeno botão sobre outros apps. Toque para abrir o painel do clima. Arraste para mover.</string>
+    <string name="ac_bubble_untested_hint">Velocidade do ventilador, direção do ar, desembaçador dianteiro e A/C ainda não foram testados no carro.</string>
+    <string name="ac_bubble_home_only_label">Só na tela inicial</string>
+    <string name="ac_bubble_home_only_desc">Ocultar o botão em todos os apps exceto o launcher.</string>
+    <string name="ac_bubble_hide_youtube_label">Ocultar sobre o YouTube</string>
+    <string name="ac_bubble_auto_close_label">Fechar o painel após</string>
+    <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_opacity_label">Opacidade</string>
+    <string name="ac_bubble_scale_label">Tamanho</string>
+    <string name="ac_bubble_reset_position">Redefinir posição</string>
+    <string name="ac_bubble_open">Abrir clima</string>
+    <string name="ac_bubble_power">Ligar</string>
+    <string name="ac_bubble_recirc">Recirc.</string>
+    <string name="ac_bubble_defrost_front">Frente</string>
+    <string name="ac_bubble_defrost_rear">Trás</string>
+    <string name="ac_bubble_airflow">Fluxo</string>
+    <string name="ac_bubble_fan">Ventilador</string>
+    <string name="ac_bubble_temp">Temperatura</string>
+    <string name="ac_bubble_wind_face">Rosto</string>
+    <string name="ac_bubble_wind_face_feet">Rosto+pés</string>
+    <string name="ac_bubble_wind_feet">Pés</string>
+    <string name="ac_bubble_wind_feet_glass">Pés+vidro</string>
+    <string name="ac_bubble_wind_glass">Vidro</string>
+    <string name="ac_bubble_write_failed">O carro não aceitou o comando do clima</string>
+    <string name="ac_bubble_pinned_label">Sempre mostrar o painel</string>
+    <string name="ac_bubble_pinned_desc">O painel do clima fica sempre na tela e o botão some. Arraste o painel pela alça lateral.</string>
+</resources>

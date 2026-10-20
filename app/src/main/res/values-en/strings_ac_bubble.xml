@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">AC bubble</string>
+    <string name="ac_bubble_enable_label">Floating AC button</string>
+    <string name="ac_bubble_enable_desc">A small button over other apps. Tap it to open the climate strip: power, A/C, AUTO, recirculation, defrost, airflow, fan speed and temperature. Drag to move it.</string>
+    <string name="ac_bubble_untested_hint">Fan speed, airflow, front defrost and A/C have not been tested in a car yet: if one does nothing, you will see a message.</string>
+    <string name="ac_bubble_home_only_label">Home screen only</string>
+    <string name="ac_bubble_home_only_desc">Hide the button in every app except the launcher.</string>
+    <string name="ac_bubble_hide_youtube_label">Hide over YouTube</string>
+    <string name="ac_bubble_auto_close_label">Close the strip after</string>
+    <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_opacity_label">Opacity</string>
+    <string name="ac_bubble_scale_label">Size</string>
+    <string name="ac_bubble_reset_position">Reset position</string>
+    <string name="ac_bubble_open">Open climate</string>
+    <string name="ac_bubble_power">Power</string>
+    <string name="ac_bubble_recirc">Recirc</string>
+    <string name="ac_bubble_defrost_front">Front</string>
+    <string name="ac_bubble_defrost_rear">Rear</string>
+    <string name="ac_bubble_airflow">Airflow</string>
+    <string name="ac_bubble_fan">Fan</string>
+    <string name="ac_bubble_temp">Temperature</string>
+    <string name="ac_bubble_wind_face">Face</string>
+    <string name="ac_bubble_wind_face_feet">Face+feet</string>
+    <string name="ac_bubble_wind_feet">Feet</string>
+    <string name="ac_bubble_wind_feet_glass">Feet+glass</string>
+    <string name="ac_bubble_wind_glass">Glass</string>
+    <string name="ac_bubble_write_failed">The car did not accept the climate command</string>
+    <string name="ac_bubble_pinned_label">Always show the panel</string>
+    <string name="ac_bubble_pinned_desc">The climate strip stays on screen and the bubble is hidden. Drag the strip by the handle at its side.</string>
+</resources>

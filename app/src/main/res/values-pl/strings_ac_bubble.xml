@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">Przycisk klimy</string>
+    <string name="ac_bubble_enable_label">Pływający przycisk klimy</string>
+    <string name="ac_bubble_enable_desc">Mały przycisk nad innymi aplikacjami. Dotknij, aby otworzyć panel klimatyzacji. Przeciągnij, aby przesunąć.</string>
+    <string name="ac_bubble_untested_hint">Prędkość nawiewu, kierunek nawiewu, odmrażanie przedniej szyby i A/C nie zostały jeszcze sprawdzone w aucie.</string>
+    <string name="ac_bubble_home_only_label">Tylko na ekranie głównym</string>
+    <string name="ac_bubble_home_only_desc">Ukrywaj przycisk we wszystkich aplikacjach poza launcherem.</string>
+    <string name="ac_bubble_hide_youtube_label">Ukrywaj nad YouTube</string>
+    <string name="ac_bubble_auto_close_label">Zamknij panel po</string>
+    <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_opacity_label">Przezroczystość</string>
+    <string name="ac_bubble_scale_label">Rozmiar</string>
+    <string name="ac_bubble_reset_position">Resetuj pozycję</string>
+    <string name="ac_bubble_open">Otwórz klimę</string>
+    <string name="ac_bubble_power">Zasilanie</string>
+    <string name="ac_bubble_recirc">Obieg</string>
+    <string name="ac_bubble_defrost_front">Przód</string>
+    <string name="ac_bubble_defrost_rear">Tył</string>
+    <string name="ac_bubble_airflow">Nawiew</string>
+    <string name="ac_bubble_fan">Wentylator</string>
+    <string name="ac_bubble_temp">Temperatura</string>
+    <string name="ac_bubble_wind_face">Twarz</string>
+    <string name="ac_bubble_wind_face_feet">Twarz+nogi</string>
+    <string name="ac_bubble_wind_feet">Nogi</string>
+    <string name="ac_bubble_wind_feet_glass">Nogi+szyba</string>
+    <string name="ac_bubble_wind_glass">Szyba</string>
+    <string name="ac_bubble_write_failed">Auto nie przyjęło polecenia klimatyzacji</string>
+    <string name="ac_bubble_pinned_label">Zawsze pokazuj panel</string>
+    <string name="ac_bubble_pinned_desc">Panel klimatyzacji jest zawsze widoczny, przycisk jest ukryty. Przeciągaj panel za uchwyt z boku.</string>
+</resources>

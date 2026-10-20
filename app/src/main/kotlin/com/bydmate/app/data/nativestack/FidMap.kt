@@ -238,6 +238,11 @@ object FidMap {
         FidEntry("seatCandLrseLevel2",          1000, 412180540,  5, Decoder.INT_RAW, symbol = "Ac.AC_LRSE_REAR_LEFT_SEAT_HEATING_LEVEL_SET_hal_only"),
         FidEntry("seatCandLrseLevel3",          1000, 412180544,  5, Decoder.INT_RAW, symbol = "Ac.AC_LRSE_REAR_RIGHT_SEAT_VENTILATING_LEVEL_SET_hal_only"),
         FidEntry("seatCandLrseLevel4",          1000, 412180548,  5, Decoder.INT_RAW, symbol = "Ac.AC_LRSE_REAR_RIGHT_SEAT_HEATING_LEVEL_SET_hal_only"),
+        // AC bubble (fork addition): compressor, rear defrost and ventilation state, read on
+        // demand while the climate strip is open. Addresses from the BYD SDK BYDAutoFeatureIds.
+        FidEntry("acCompressor",  1000, 1077936137, 5, Decoder.INT_ENUM, symbol = "Ac.AC_COMPRESSOR_MODE"),
+        FidEntry("acDefrostRear", 1000, 1128267825, 5, Decoder.INT_ENUM, symbol = "Ac.AC_DEFROST_REAR_STATE"),
+        FidEntry("acVentilation", 1000, 1314914314, 5, Decoder.INT_ENUM, symbol = "Ac.AC_VENTILATION_STATE"),
     )
 
     /**

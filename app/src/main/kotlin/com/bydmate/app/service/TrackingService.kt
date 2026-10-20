@@ -1043,6 +1043,7 @@ class TrackingService : Service(), LocationListener {
             // so calling attach unconditionally here is safe.
             com.bydmate.app.ui.widget.WidgetController.attach(this, "service_start")
         }
+        com.bydmate.app.acbubble.AcBubbleController.attach(this, "service_start")
     }
 
     /**

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">Кнопка клімату</string>
+    <string name="ac_bubble_enable_label">Плаваючая кнопка клімату</string>
+    <string name="ac_bubble_enable_desc">Маленькая кнопка па-над іншымі праграмамі. Націск адкрывае панэль клімату. Перацягніце, каб перамясціць.</string>
+    <string name="ac_bubble_untested_hint">Хуткасць вентылятара, рэжым абдуву, абдуў лабавога шкла і A/C яшчэ не правераны на машыне.</string>
+    <string name="ac_bubble_home_only_label">Толькі на галоўным экране</string>
+    <string name="ac_bubble_home_only_desc">Хаваць кнопку ва ўсіх праграмах, акрамя лаўнчара.</string>
+    <string name="ac_bubble_hide_youtube_label">Хаваць па-над YouTube</string>
+    <string name="ac_bubble_auto_close_label">Зачыняць панэль праз</string>
+    <string name="ac_bubble_seconds">%1$d с</string>
+    <string name="ac_bubble_opacity_label">Празрыстасць</string>
+    <string name="ac_bubble_scale_label">Памер</string>
+    <string name="ac_bubble_reset_position">Скінуць пазіцыю</string>
+    <string name="ac_bubble_open">Адкрыць клімат</string>
+    <string name="ac_bubble_power">Укл</string>
+    <string name="ac_bubble_recirc">Рэцырк.</string>
+    <string name="ac_bubble_defrost_front">Перад</string>
+    <string name="ac_bubble_defrost_rear">Зад</string>
+    <string name="ac_bubble_airflow">Абдуў</string>
+    <string name="ac_bubble_fan">Вентылятар</string>
+    <string name="ac_bubble_temp">Тэмпература</string>
+    <string name="ac_bubble_wind_face">Твар</string>
+    <string name="ac_bubble_wind_face_feet">Твар+ногі</string>
+    <string name="ac_bubble_wind_feet">Ногі</string>
+    <string name="ac_bubble_wind_feet_glass">Ногі+шкло</string>
+    <string name="ac_bubble_wind_glass">Шкло</string>
+    <string name="ac_bubble_write_failed">Машына не прыняла каманду клімату</string>
+    <string name="ac_bubble_pinned_label">Заўсёды паказваць панэль</string>
+    <string name="ac_bubble_pinned_desc">Панэль клімату бачная пастаянна, кнопка схаваная. Перацягвайце панэль за ручку збоку.</string>
+</resources>

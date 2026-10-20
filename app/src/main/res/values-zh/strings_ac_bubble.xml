@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">空调悬浮按钮</string>
+    <string name="ac_bubble_enable_label">空调悬浮按钮</string>
+    <string name="ac_bubble_enable_desc">显示在其他应用上方的小按钮。点击打开空调面板：电源、A/C、AUTO、内外循环、除霜、出风模式、风量和温度。拖动可移动。</string>
+    <string name="ac_bubble_untested_hint">风量、出风模式、前挡除霜和 A/C 尚未在实车上验证：如果按钮无效，会显示提示。</string>
+    <string name="ac_bubble_home_only_label">仅在主屏幕显示</string>
+    <string name="ac_bubble_home_only_desc">在启动器以外的所有应用中隐藏按钮。</string>
+    <string name="ac_bubble_hide_youtube_label">在 YouTube 上隐藏</string>
+    <string name="ac_bubble_auto_close_label">面板自动关闭时间</string>
+    <string name="ac_bubble_seconds">%1$d 秒</string>
+    <string name="ac_bubble_opacity_label">透明度</string>
+    <string name="ac_bubble_scale_label">大小</string>
+    <string name="ac_bubble_reset_position">重置位置</string>
+    <string name="ac_bubble_open">打开空调</string>
+    <string name="ac_bubble_power">电源</string>
+    <string name="ac_bubble_recirc">循环</string>
+    <string name="ac_bubble_defrost_front">前除霜</string>
+    <string name="ac_bubble_defrost_rear">后除霜</string>
+    <string name="ac_bubble_airflow">出风</string>
+    <string name="ac_bubble_fan">风量</string>
+    <string name="ac_bubble_temp">温度</string>
+    <string name="ac_bubble_wind_face">吹面</string>
+    <string name="ac_bubble_wind_face_feet">吹面吹脚</string>
+    <string name="ac_bubble_wind_feet">吹脚</string>
+    <string name="ac_bubble_wind_feet_glass">吹脚除霜</string>
+    <string name="ac_bubble_wind_glass">除霜</string>
+    <string name="ac_bubble_write_failed">车辆未接受空调指令</string>
+    <string name="ac_bubble_pinned_label">始终显示面板</string>
+    <string name="ac_bubble_pinned_desc">空调面板常驻屏幕，隐藏悬浮按钮。拖动侧边把手可移动面板。</string>
+</resources>

@@ -213,6 +213,7 @@ class BYDMateApp : Application(), Configuration.Provider {
             // next time the app goes to background.
             WidgetPreferences(app).setHiddenUntilAppLaunch(false)
             WidgetController.setAppForegrounded(true)
+            com.bydmate.app.acbubble.AcBubbleController.setAppForegrounded(true)
             // Same edge hides the split pill (390-4) — the session keeps running.
             splitOverlay.setOwnAppForegrounded(true)
         }
@@ -223,6 +224,8 @@ class BYDMateApp : Application(), Configuration.Provider {
             // A backgrounded process is the one the system kills first.
             Trace.flush()
             WidgetController.setAppForegrounded(false)
+            com.bydmate.app.acbubble.AcBubbleController.setAppForegrounded(false)
+            com.bydmate.app.acbubble.AcBubbleController.attach(app, "app_backgrounded")
             splitOverlay.setOwnAppForegrounded(false)
             val prefs = WidgetPreferences(app)
             if (prefs.isEnabled() && Settings.canDrawOverlays(app)) {

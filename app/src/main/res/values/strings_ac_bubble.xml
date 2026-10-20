@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating AC bubble (fork addition, kept in its own file so upstream merges stay clean). -->
+<resources>
+    <string name="ac_bubble_section_header">Кнопка климата</string>
+    <string name="ac_bubble_enable_label">Плавающая кнопка климата</string>
+    <string name="ac_bubble_enable_desc">Маленькая кнопка поверх других приложений. Нажатие открывает панель: питание, A/C, AUTO, рециркуляция, обдув стёкол, режим обдува, скорость вентилятора и температура. Перетащите, чтобы переместить.</string>
+    <string name="ac_bubble_untested_hint">Скорость вентилятора, режим обдува, обдув лобового стекла и A/C ещё не проверены на машине: если кнопка не срабатывает, появится сообщение.</string>
+    <string name="ac_bubble_home_only_label">Только на главном экране</string>
+    <string name="ac_bubble_home_only_desc">Скрывать кнопку во всех приложениях, кроме лаунчера.</string>
+    <string name="ac_bubble_hide_youtube_label">Скрывать поверх YouTube</string>
+    <string name="ac_bubble_auto_close_label">Закрывать панель через</string>
+    <string name="ac_bubble_seconds">%1$d с</string>
+    <string name="ac_bubble_opacity_label">Прозрачность</string>
+    <string name="ac_bubble_scale_label">Размер</string>
+    <string name="ac_bubble_reset_position">Сбросить позицию</string>
+    <string name="ac_bubble_open">Открыть климат</string>
+    <string name="ac_bubble_power">Вкл</string>
+    <string name="ac_bubble_recirc">Рецирк.</string>
+    <string name="ac_bubble_defrost_front">Перед</string>
+    <string name="ac_bubble_defrost_rear">Зад</string>
+    <string name="ac_bubble_airflow">Обдув</string>
+    <string name="ac_bubble_fan">Вентилятор</string>
+    <string name="ac_bubble_temp">Температура</string>
+    <string name="ac_bubble_wind_face">Лицо</string>
+    <string name="ac_bubble_wind_face_feet">Лицо+ноги</string>
+    <string name="ac_bubble_wind_feet">Ноги</string>
+    <string name="ac_bubble_wind_feet_glass">Ноги+стекло</string>
+    <string name="ac_bubble_wind_glass">Стекло</string>
+    <string name="ac_bubble_write_failed">Машина не приняла команду климата</string>
+    <string name="ac_bubble_pinned_label">Всегда показывать панель</string>
+    <string name="ac_bubble_pinned_desc">Панель климата видна постоянно, кнопка скрыта. Перетаскивайте панель за ручку сбоку.</string>
+</resources>

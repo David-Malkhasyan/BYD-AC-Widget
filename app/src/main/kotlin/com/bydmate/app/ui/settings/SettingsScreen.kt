@@ -299,7 +299,10 @@ fun SettingsScreen(
                         SettingsSection.VOICE -> VoiceSettingsContent(
                             state, viewModel, onNavigateToVoiceJournal, onNavigateToAgentChat, onNavigateToVoiceUserPhrases,
                         )
-                        SettingsSection.WIDGET -> WidgetSection()
+                        SettingsSection.WIDGET -> {
+                            WidgetSection()
+                            com.bydmate.app.acbubble.AcBubbleSettingsSection()
+                        }
                         SettingsSection.DISPLAY -> DisplaySection()
                         SettingsSection.SPLIT -> SplitSection()
                         SettingsSection.SERVICE -> ServiceSection(state, viewModel)
