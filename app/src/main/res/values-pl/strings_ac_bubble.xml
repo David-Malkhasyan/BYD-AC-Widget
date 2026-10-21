@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">Ukrywaj nad YouTube</string>
     <string name="ac_bubble_auto_close_label">Zamknij panel po</string>
     <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_color_label">Kolor</string>
+    <string name="ac_bubble_color_dark">Ciemny</string>
+    <string name="ac_bubble_color_graphite">Grafit</string>
+    <string name="ac_bubble_color_blue">Niebieski</string>
+    <string name="ac_bubble_color_steel">Stalowy</string>
+    <string name="ac_bubble_color_sky">Błękitny</string>
+    <string name="ac_bubble_color_grey">Szary</string>
+    <string name="ac_bubble_color_light">Jasny</string>
     <string name="ac_bubble_opacity_label">Przezroczystość</string>
     <string name="ac_bubble_scale_label">Rozmiar</string>
     <string name="ac_bubble_reset_position">Resetuj pozycję</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">Nogi+szyba</string>
     <string name="ac_bubble_wind_glass">Szyba</string>
     <string name="ac_bubble_write_failed">Auto nie przyjęło polecenia klimatyzacji</string>
+    <string name="ac_bubble_docked_label">Zakładka przy krawędzi ekranu</string>
+    <string name="ac_bubble_docked_desc">Zamiast przycisku — zakładka przyklejona do krawędzi ekranu: temperatura, prędkość wentylatora i kierunek nawiewu. Dotknięcie otwiera panel, przeciągnięcie przenosi ją do drugiej krawędzi.</string>
     <string name="ac_bubble_pinned_label">Zawsze pokazuj panel</string>
     <string name="ac_bubble_pinned_desc">Panel klimatyzacji jest zawsze widoczny, przycisk jest ukryty. Przeciągaj panel za uchwyt z boku.</string>
 </resources>

@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">Ocultar sobre o YouTube</string>
     <string name="ac_bubble_auto_close_label">Fechar o painel após</string>
     <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_color_label">Cor</string>
+    <string name="ac_bubble_color_dark">Escuro</string>
+    <string name="ac_bubble_color_graphite">Grafite</string>
+    <string name="ac_bubble_color_blue">Azul</string>
+    <string name="ac_bubble_color_steel">Aço</string>
+    <string name="ac_bubble_color_sky">Céu</string>
+    <string name="ac_bubble_color_grey">Cinza</string>
+    <string name="ac_bubble_color_light">Claro</string>
     <string name="ac_bubble_opacity_label">Opacidade</string>
     <string name="ac_bubble_scale_label">Tamanho</string>
     <string name="ac_bubble_reset_position">Redefinir posição</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">Pés+vidro</string>
     <string name="ac_bubble_wind_glass">Vidro</string>
     <string name="ac_bubble_write_failed">O carro não aceitou o comando do clima</string>
+    <string name="ac_bubble_docked_label">Aba na borda da tela</string>
+    <string name="ac_bubble_docked_desc">Em vez do botão, uma aba presa à borda da tela: temperatura, velocidade do ventilador e direção do ar. Toque para abrir o painel; arraste para a outra borda.</string>
     <string name="ac_bubble_pinned_label">Sempre mostrar o painel</string>
     <string name="ac_bubble_pinned_desc">O painel do clima fica sempre na tela e o botão some. Arraste o painel pela alça lateral.</string>
 </resources>

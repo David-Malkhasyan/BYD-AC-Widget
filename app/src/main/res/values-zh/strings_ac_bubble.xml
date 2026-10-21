@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">在 YouTube 上隐藏</string>
     <string name="ac_bubble_auto_close_label">面板自动关闭时间</string>
     <string name="ac_bubble_seconds">%1$d 秒</string>
+    <string name="ac_bubble_color_label">颜色</string>
+    <string name="ac_bubble_color_dark">深色</string>
+    <string name="ac_bubble_color_graphite">石墨</string>
+    <string name="ac_bubble_color_blue">蓝色</string>
+    <string name="ac_bubble_color_steel">钢蓝</string>
+    <string name="ac_bubble_color_sky">天蓝</string>
+    <string name="ac_bubble_color_grey">灰色</string>
+    <string name="ac_bubble_color_light">浅色</string>
     <string name="ac_bubble_opacity_label">透明度</string>
     <string name="ac_bubble_scale_label">大小</string>
     <string name="ac_bubble_reset_position">重置位置</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">吹脚除霜</string>
     <string name="ac_bubble_wind_glass">除霜</string>
     <string name="ac_bubble_write_failed">车辆未接受空调指令</string>
+    <string name="ac_bubble_docked_label">屏幕边缘标签</string>
+    <string name="ac_bubble_docked_desc">用贴在屏幕边缘的标签代替悬浮按钮：显示温度、风速和出风方向。点按打开面板，拖动可移到另一侧边缘。</string>
     <string name="ac_bubble_pinned_label">始终显示面板</string>
     <string name="ac_bubble_pinned_desc">空调面板常驻屏幕，隐藏悬浮按钮。拖动侧边把手可移动面板。</string>
 </resources>

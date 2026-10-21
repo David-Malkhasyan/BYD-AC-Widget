@@ -3,10 +3,18 @@ package com.bydmate.app.acbubble
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as AndroidSettings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -15,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -32,7 +41,41 @@ import com.bydmate.app.ui.settings.SettingHint
 import com.bydmate.app.ui.settings.SettingSliderRow
 import com.bydmate.app.ui.settings.SettingToggleRow
 import com.bydmate.app.ui.theme.CardSurfaceElevated
+import com.bydmate.app.ui.theme.TextMuted
 import com.bydmate.app.ui.theme.TextPrimary
+
+/** One swatch per [AcTheme]: the chosen one wears a ring and its name is shown as the value. */
+@Composable
+private fun ColorRow(selected: AcTheme, enabled: Boolean, onSelect: (AcTheme) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.ac_bubble_color_label), color = if (enabled) TextPrimary else TextMuted, fontSize = 15.sp)
+            Text(stringResource(selected.labelRes), color = TextMuted, fontSize = 12.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AcTheme.entries.forEach { t ->
+                val ring = if (t == selected) TextPrimary else TextMuted.copy(alpha = 0.35f)
+                Box(
+                    modifier = Modifier
+                        .size(SWATCH_DP.dp)
+                        .border(if (t == selected) 2.5.dp else 1.dp, ring, CircleShape)
+                        .padding(3.dp)
+                        .background(t.bg.copy(alpha = 1f), CircleShape)
+                        .clickable(enabled = enabled) { onSelect(t) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // A hint of the icon colour, so a light swatch reads as "dark icons on light".
+                    Box(Modifier.size(6.dp).background(t.fg, CircleShape))
+                }
+            }
+        }
+    }
+}
+
+private const val SWATCH_DP = 30
 
 /** Settings block of the floating AC bubble, shown under the stats widget's own settings. */
 @Composable
@@ -46,6 +89,8 @@ fun AcBubbleSettingsSection() {
     val hideYt by remember { prefs.hideOnYoutubeFlow() }.collectAsStateWithLifecycle(initialValue = prefs.isHideOnYoutube())
     val autoClose by remember { prefs.autoCloseSecFlow() }.collectAsStateWithLifecycle(initialValue = prefs.getAutoCloseSec())
     val pinned by remember { prefs.pinnedFlow() }.collectAsStateWithLifecycle(initialValue = prefs.isPinned())
+    val docked by remember { prefs.dockedFlow() }.collectAsStateWithLifecycle(initialValue = prefs.isDocked())
+    val themeKey by remember { prefs.themeKeyFlow() }.collectAsStateWithLifecycle(initialValue = prefs.getThemeKey())
 
     // Sliders pop the bubble over Settings for a live look; leaving the screen ends that.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -95,12 +140,27 @@ fun AcBubbleSettingsSection() {
                 },
             )
             SettingHint(text = stringResource(R.string.ac_bubble_untested_hint))
+            // The tab and the pinned strip both replace the bubble: one at a time.
+            SettingToggleRow(
+                title = stringResource(R.string.ac_bubble_docked_label),
+                traceId = "ac_bubble_docked",
+                description = stringResource(R.string.ac_bubble_docked_desc),
+                checked = docked,
+                onCheckedChange = { on ->
+                    if (on) prefs.setPinned(false)
+                    prefs.setDocked(on)
+                },
+                enabled = enabled,
+            )
             SettingToggleRow(
                 title = stringResource(R.string.ac_bubble_pinned_label),
                 traceId = "ac_bubble_pinned",
                 description = stringResource(R.string.ac_bubble_pinned_desc),
                 checked = pinned,
-                onCheckedChange = { prefs.setPinned(it) },
+                onCheckedChange = { on ->
+                    if (on) prefs.setDocked(false)
+                    prefs.setPinned(on)
+                },
                 enabled = enabled,
             )
             SettingToggleRow(
@@ -126,6 +186,14 @@ fun AcBubbleSettingsSection() {
                 steps = AcBubblePreferences.AUTO_CLOSE_MAX_SEC - AcBubblePreferences.AUTO_CLOSE_MIN_SEC - 1,
                 valueLabel = stringResource(R.string.ac_bubble_seconds, autoClose),
                 enabled = enabled && !pinned,
+            )
+            ColorRow(
+                selected = AcTheme.of(themeKey),
+                enabled = enabled,
+                onSelect = {
+                    if (enabled) AcBubbleController.setPreviewMode(context, true)
+                    prefs.setThemeKey(it.key)
+                },
             )
             SettingSliderRow(
                 title = stringResource(R.string.ac_bubble_opacity_label),

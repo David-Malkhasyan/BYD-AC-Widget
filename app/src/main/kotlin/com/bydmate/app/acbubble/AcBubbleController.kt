@@ -4,15 +4,18 @@
 
 package com.bydmate.app.acbubble
 
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -67,8 +70,10 @@ interface AcBubbleEntryPoint {
 }
 
 /**
- * Owns the floating AC bubble overlay: one window holding the round bubble and, when opened,
- * the horizontal control strip next to it. Lifecycle mirrors [WidgetController] (attached from
+ * Owns the floating AC bubble overlay: one window holding the bubble (or the edge tab, or the
+ * pinned strip's grip) and, when opened, the control strip next to it. The window follows the
+ * screen: a rotation re-clamps it, and a strip too wide for the screen is scaled down to fit.
+ * Lifecycle mirrors [WidgetController] (attached from
  * TrackingService / app background, detached while BYDMate itself is on screen) and it obeys
  * the same visibility rules (camera, car settings, own overlays, optional YouTube/home-only).
  */
@@ -82,6 +87,8 @@ object AcBubbleController {
     private const val READBACK_AFTER_WRITE_MS = 1_000L
     /** Lets Compose redraw at a new size before the window is measured again. */
     private const val RELAYOUT_DELAY_MS = 80L
+    /** Strip scale changes smaller than this are not worth a relayout. */
+    private const val FIT_EPSILON = 0.01f
     /** Own read of the climate state while the strip is open: same cadence as the service poll. */
     private const val OWN_READ_EVERY_MS = 3_000L
     /** A snapshot older than this (service stopped, car asleep) shows as unknown, never as fact. */
@@ -130,10 +137,21 @@ object AcBubbleController {
     private var stripLaidOut = false
     private val opensLeft = mutableStateOf(false)
     private val pressed = mutableStateOf(false)
+    /** What stands in for the bubble while the strip is closed. */
+    private enum class Mode { BUBBLE, PINNED, DOCKED }
+    private val mode = mutableStateOf(Mode.BUBBLE)
     /** "Always show the panel": the strip never folds and the bubble turns into a drag grip. */
-    private val pinned = mutableStateOf(false)
+    private val isPinned get() = mode.value == Mode.PINNED
+    /** The edge tab: hangs from a side of the screen and opens the strip inward. */
+    private val isDocked get() = mode.value == Mode.DOCKED
+    /** Which screen edge the tab hangs from. */
+    private val dockRight = mutableStateOf(true)
     private val alphaState = mutableStateOf(1f)
     private val scaleState = mutableStateOf(1f)
+    private val theme = mutableStateOf(AcTheme.DEFAULT)
+    /** The strip's own scale: the user's, or smaller when the screen is too narrow for it. */
+    private val stripScale = mutableStateOf(1f)
+    private var callbacks: ComponentCallbacks? = null
     private var lastTouchMs = 0L
     private val stepJobs = mutableMapOf<String, Job>()
     private var collapseJob: Job? = null
@@ -170,20 +188,14 @@ object AcBubbleController {
         val viewCtx = localizedContext(ctx)
         val windowManager = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         wm = windowManager
-        val metrics = viewCtx.resources.displayMetrics
+        val metrics = screen()
         scaleState.value = prefs.getScale()
+        stripScale.value = scaleState.value
         alphaState.value = prefs.getAlpha()
-        pinned.value = prefs.isPinned()
-
-        if (prefs.hasPosition()) {
-            bubbleX = prefs.getX()
-            bubbleY = prefs.getY()
-        } else {
-            // Default: right edge, a third of the way down — clear of the BYD status bar.
-            bubbleX = metrics.widthPixels - bubbleW(metrics) - dp(metrics, 16)
-            bubbleY = metrics.heightPixels / 3
-        }
-        clampBubble(metrics)
+        theme.value = AcTheme.of(prefs.getThemeKey())
+        mode.value = modeOf(prefs)
+        dockRight.value = prefs.isDockRight()
+        loadPosition(prefs, metrics)
 
         val p = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -212,8 +224,11 @@ object AcBubbleController {
             setViewTreeLifecycleOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
-                if (pinned.value) AcGrip(alphaState.value, scaleState.value)
-                else AcBubble(shown.value, alphaState.value, scaleState.value, pressed.value)
+                when (mode.value) {
+                    Mode.PINNED -> AcGrip(theme.value, alphaState.value, stripScale.value)
+                    Mode.DOCKED -> AcTab(shown.value, theme.value, alphaState.value, scaleState.value, dockRight.value, pressed.value)
+                    Mode.BUBBLE -> AcBubble(shown.value, theme.value, alphaState.value, scaleState.value, pressed.value)
+                }
             }
             setOnTouchListener(BubbleTouchListener(prefs))
         }
@@ -222,7 +237,7 @@ object AcBubbleController {
             setViewTreeLifecycleOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
-                AcStrip(shown.value, alphaState.value, scaleState.value, expanded.value, opensLeft.value, ::onAction)
+                AcStrip(shown.value, theme.value, alphaState.value, stripScale.value, expanded.value, opensLeft.value, ::onAction)
             }
             visibility = View.GONE
         }
@@ -234,7 +249,7 @@ object AcBubbleController {
             addView(bubble)
             // A tap anywhere else on screen folds the strip back.
             setOnTouchListener { _, e ->
-                if (e.action == MotionEvent.ACTION_OUTSIDE && !pinned.value) guard("outside") { collapse() }
+                if (e.action == MotionEvent.ACTION_OUTSIDE && !isPinned) guard("outside") { collapse() }
                 false
             }
         }
@@ -252,9 +267,51 @@ object AcBubbleController {
             return
         }
         Log.i(TAG, "attached ($reason)")
+        // A rotation (or any screen-size change) re-fits the window to the new screen.
+        val cb = object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) = guard("rotate") { onScreenChanged() }
+            override fun onLowMemory() = Unit
+        }
+        ctx.registerComponentCallbacks(cb)
+        callbacks = cb
         startSubscriptions(ctx, prefs)
         // The window is on screen only after its first layout pass: open the pinned strip then.
-        if (pinned.value) container.post { guard("pinned_open") { expand() } }
+        if (isPinned) container.post { guard("pinned_open") { expand() } }
+    }
+
+    private fun modeOf(prefs: AcBubblePreferences): Mode = modeOf(prefs.isPinned(), prefs.isDocked())
+    private fun modeOf(pinned: Boolean, docked: Boolean): Mode = when {
+        docked -> Mode.DOCKED
+        pinned -> Mode.PINNED
+        else -> Mode.BUBBLE
+    }
+
+    /** The saved spot of the current mode, or its default; a docked tab always ends up on its edge. */
+    private fun loadPosition(prefs: AcBubblePreferences, metrics: DisplayMetrics) {
+        if (isDocked) {
+            bubbleY = prefs.getDockY().takeIf { it != AcBubblePreferences.NO_POSITION } ?: metrics.heightPixels / 3
+        } else if (prefs.hasPosition()) {
+            bubbleX = prefs.getX()
+            bubbleY = prefs.getY()
+        } else {
+            // Default: right edge, a third of the way down — clear of the BYD status bar.
+            bubbleX = metrics.widthPixels - bubbleW(metrics) - dp(metrics, 16)
+            bubbleY = metrics.heightPixels / 3
+        }
+        clampBubble(metrics)
+    }
+
+    /** The screen turned or changed size: keep the bubble on it and reopen the strip to fit. */
+    private fun onScreenChanged() {
+        val r = root ?: return
+        clampBubble(screen())
+        if (stripLaidOut) {
+            val open = expanded.value
+            removeStrip()
+            if (open || isPinned) r.postDelayed({ guard("rotate_open") { expand() } }, RELAYOUT_DELAY_MS)
+        } else {
+            placeWindow()
+        }
     }
 
     private fun detachUnsafe(reason: String) {
@@ -264,6 +321,8 @@ object AcBubbleController {
         stepJobs.clear()
         collapseJob = null
         root?.let { r -> try { wm?.removeView(r) } catch (e: Exception) { Log.w(TAG, "removeView: ${e.message}") } }
+        callbacks?.let { cb -> try { appCtx?.unregisterComponentCallbacks(cb) } catch (_: Exception) {} }
+        callbacks = null
         bubbleView?.setOnTouchListener(null)
         lifecycle?.onDestroy()
         root = null
@@ -281,6 +340,14 @@ object AcBubbleController {
     fun setAppForegrounded(foreground: Boolean) = guard("foreground") {
         appForegrounded = foreground
         if (foreground && !previewMode) detachUnsafe("app_foreground")
+    }
+
+    /** The app language changed: the bubble comes back in the new one (at once, or when the app leaves). */
+    @Synchronized
+    fun relocale(context: Context) = guard("relocale") {
+        if (root == null) return@guard
+        detachUnsafe("relocale")
+        attachUnsafe(context, "relocale")
     }
 
     /** Settings sliders show the bubble over BYDMate while dragged, like the stats widget. */
@@ -326,25 +393,30 @@ object AcBubbleController {
             }
         }
         s.launch { prefs.alphaFlow().collect { alphaState.value = it } }
+        s.launch { prefs.themeKeyFlow().collect { theme.value = AcTheme.of(it) } }
         s.launch {
-            prefs.pinnedFlow().collect { on ->
-                if (pinned.value == on) return@collect
-                // The bubble and the grip differ in size: rebuild the layout around the new one.
+            combine(prefs.pinnedFlow(), prefs.dockedFlow()) { p, d -> modeOf(p, d) }.collect { m ->
+                if (mode.value == m) return@collect
+                // The bubble, the grip and the tab differ in size: rebuild the layout around the new one.
                 removeStrip()
-                pinned.value = on
-                root?.context?.resources?.displayMetrics?.let { m -> clampBubble(m); placeWindow() }
-                if (on) expand()
+                mode.value = m
+                dockRight.value = prefs.isDockRight()
+                loadPosition(prefs, screen())
+                placeWindow()
+                if (isPinned) expand()
             }
         }
         s.launch {
             prefs.scaleFlow().collect {
                 if (scaleState.value != it) {
                     scaleState.value = it
-                    root?.context?.resources?.displayMetrics?.let { m -> clampBubble(m); placeWindow() }
+                    stripScale.value = it
+                    clampBubble(screen())
+                    placeWindow()
                     if (stripLaidOut) {
                         val open = expanded.value
                         removeStrip()
-                        if (open || pinned.value) root?.postDelayed({ guard("rescale") { expand() } }, RELAYOUT_DELAY_MS)
+                        if (open || isPinned) root?.postDelayed({ guard("rescale") { expand() } }, RELAYOUT_DELAY_MS)
                     }
                 }
             }
@@ -355,7 +427,7 @@ object AcBubbleController {
                 delay(TICK_MS)
                 refresh()
                 val idleMs = SystemClock.uptimeMillis() - lastTouchMs
-                if (expanded.value && !pinned.value && idleMs >= prefs.getAutoCloseSec() * 1_000L) collapse()
+                if (expanded.value && !isPinned && idleMs >= prefs.getAutoCloseSec() * 1_000L) collapse()
             }
         }
         // While the strip is open, read the whole climate state ourselves every few seconds: the
@@ -383,7 +455,7 @@ object AcBubbleController {
             hide.collect { reason ->
                 if (reason != null) removeStrip()
                 root?.visibility = if (reason != null) View.GONE else View.VISIBLE
-                if (reason == null && pinned.value) expand()
+                if (reason == null && isPinned) expand()
             }
         }
     }
@@ -487,7 +559,7 @@ object AcBubbleController {
         }
         result.onFailure {
             Log.w(TAG, "write $write failed: ${it.message}")
-            toast(ctx.getString(R.string.ac_bubble_write_failed))
+            toast(R.string.ac_bubble_write_failed)
         }.onSuccess { Log.i(TAG, "write $write ok") }
         // Read the car back shortly after, so the strip shows what it really did (a refused
         // value, or a mode the car changed along with ours) without waiting for the next poll.
@@ -497,8 +569,10 @@ object AcBubbleController {
         }
     }
 
-    private fun toast(text: String) {
-        val ctx = root?.context ?: appCtx ?: return
+    /** Shown in the app's language, not the head unit's: the plain app context follows the system locale. */
+    private fun toast(resId: Int) {
+        val ctx = root?.context ?: appCtx?.let(::localizedContext) ?: return
+        val text = ctx.getString(resId)
         Handler(Looper.getMainLooper()).post {
             try { Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show() } catch (_: Exception) {}
         }
@@ -515,17 +589,17 @@ object AcBubbleController {
         val r = root ?: return
         val strip = stripView ?: return
         val bubble = bubbleView ?: return
-        val metrics = r.context.resources.displayMetrics
+        val metrics = screen()
         lastTouchMs = SystemClock.uptimeMillis()
         if (!stripLaidOut) {
-            // Open toward the side with more room.
-            val left = bubbleX > metrics.widthPixels - (bubbleX + bubbleW(metrics))
+            // Open inward from the tab's edge, or toward the side of the bubble with more room.
+            val left = if (isDocked) dockRight.value else AcBubbleLayout.opensLeft(bubbleX, bubbleW(metrics), metrics.widthPixels)
             opensLeft.value = left
             // Only the strip moves: removing the bubble mid-gesture would cancel the touch on it.
             if (strip.parent != null) r.removeView(strip)
             if (bubble.parent == null) r.addView(bubble)
             // A small gap between the bubble and the strip, on the side they meet.
-            val gap = dp(metrics, (AC_STRIP_GAP_DP * scaleState.value).toInt())
+            val gap = dp(metrics, (AC_STRIP_GAP_DP * stripScale.value).toInt())
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { if (left) rightMargin = gap else leftMargin = gap }
@@ -571,7 +645,7 @@ object AcBubbleController {
     private fun placeWindow() {
         val p = params ?: return
         val r = root ?: return
-        val metrics = r.context.resources.displayMetrics
+        val metrics = screen()
         if (stripLaidOut && !r.isAttachedToWindow) {
             // Measuring a ComposeView before its window exists throws: try again once it does.
             r.post { guard("place") { placeWindow() } }
@@ -584,6 +658,17 @@ object AcBubbleController {
             r.measure(unspecified, unspecified)
             p.width = r.measuredWidth
             p.height = r.measuredHeight
+            // A strip wider than the room beside the bubble (a rotated screen, a big size setting)
+            // is drawn smaller; Compose needs a frame to relayout, then the window is sized again.
+            // Measured at the current strip scale; the fit is judged from the user's own scale, so
+            // a strip shrunk for a narrow screen grows back once there is room again.
+            val naturalPx = ((stripView?.measuredWidth ?: 0) * scaleState.value / stripScale.value).toInt()
+            val room = metrics.widthPixels - bubbleW(metrics) - dp(metrics, (AC_STRIP_GAP_DP * stripScale.value).toInt())
+            val fit = AcBubbleLayout.fitScale(scaleState.value, naturalPx, room)
+            if (fit < stripScale.value - FIT_EPSILON || fit > stripScale.value + FIT_EPSILON) {
+                stripScale.value = fit
+                r.postDelayed({ guard("refit") { if (stripLaidOut) placeWindow() } }, RELAYOUT_DELAY_MS)
+            }
         } else {
             p.width = WindowManager.LayoutParams.WRAP_CONTENT
             p.height = WindowManager.LayoutParams.WRAP_CONTENT
@@ -595,8 +680,10 @@ object AcBubbleController {
             p.gravity = Gravity.TOP or Gravity.START
             p.x = bubbleX
         }
+        // Whatever the side, the whole window stays on the screen.
+        if (stripLaidOut) p.x = AcBubbleLayout.clampWindowX(p.x, p.width, metrics.widthPixels)
         // The strip is taller than the bubble; centre it on the bubble's row.
-        val stripPx = dp(metrics, (AC_STRIP_HEIGHT_DP * scaleState.value).toInt())
+        val stripPx = dp(metrics, (AC_STRIP_HEIGHT_DP * stripScale.value).toInt())
         p.y = if (stripLaidOut) {
             (bubbleY - (stripPx - bubbleH(metrics)) / 2).coerceIn(0, (metrics.heightPixels - stripPx).coerceAtLeast(0))
         } else {
@@ -618,7 +705,7 @@ object AcBubbleController {
 
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             // Read per event: the display can change while the bubble lives.
-            guard("touch") { handle(e, v.resources.displayMetrics) }
+            guard("touch") { handle(e, screen()) }
             return true
         }
 
@@ -638,12 +725,12 @@ object AcBubbleController {
                         dragging = true
                         pressed.value = false
                         // The pinned strip travels with its grip; the bubble's folds away.
-                        if (!pinned.value) removeStrip()
+                        if (!isPinned) removeStrip()
                     }
                     if (dragging) {
                         bubbleX = startX + dx
                         bubbleY = startY + dy
-                        clampBubble(metrics)
+                        clampBubble(metrics, dragging = true)
                         placeWindow()
                     }
                 }
@@ -651,12 +738,18 @@ object AcBubbleController {
                     pressed.value = false
                     val wasDrag = dragging
                     dragging = false
-                    if (wasDrag) {
+                    if (wasDrag && isDocked) {
+                        // The tab snaps back to the nearer edge wherever it is let go.
+                        dockRight.value = AcBubbleLayout.docksRight(bubbleX, bubbleW(metrics), metrics.widthPixels)
+                        clampBubble(metrics)
+                        placeWindow()
+                        prefs.saveDock(dockRight.value, bubbleY)
+                    } else if (wasDrag) {
                         prefs.savePosition(bubbleX, bubbleY)
                         // Re-pick the side the pinned strip opens to at its new place, once this
                         // touch event is fully delivered.
-                        if (pinned.value) root?.post { guard("repin") { removeStrip(); expand() } }
-                    } else if (e.action == MotionEvent.ACTION_UP && !pinned.value) {
+                        if (isPinned) root?.post { guard("repin") { removeStrip(); expand() } }
+                    } else if (e.action == MotionEvent.ACTION_UP && !isPinned) {
                         toggle()
                     }
                 }
@@ -666,21 +759,40 @@ object AcBubbleController {
 
     // --- Helpers ---
 
-    private fun clampBubble(metrics: DisplayMetrics) {
+    /** Keeps the bubble on screen; a docked tab is also pulled flush to its edge (not while dragged). */
+    private fun clampBubble(metrics: DisplayMetrics, dragging: Boolean = false) {
         val (x, y) = DragGestureLogic.clampToScreen(
             x = bubbleX, y = bubbleY, widgetWidth = bubbleW(metrics), widgetHeight = bubbleH(metrics),
             screenWidth = metrics.widthPixels, screenHeight = metrics.heightPixels,
         )
-        bubbleX = x
+        bubbleX = if (isDocked && !dragging) AcBubbleLayout.dockX(dockRight.value, bubbleW(metrics), metrics.widthPixels) else x
         bubbleY = y
     }
 
-    private fun bubbleW(metrics: DisplayMetrics): Int =
-        dp(metrics, ((if (pinned.value) GRIP_W_DP else AC_BUBBLE_W_DP) * scaleState.value).toInt())
-    private fun bubbleH(metrics: DisplayMetrics): Int =
-        dp(metrics, ((if (pinned.value) AC_STRIP_HEIGHT_DP else AC_BUBBLE_H_DP) * scaleState.value).toInt())
+    private fun bubbleW(metrics: DisplayMetrics): Int = when (mode.value) {
+        Mode.PINNED -> dp(metrics, (GRIP_W_DP * stripScale.value).toInt())
+        Mode.DOCKED -> dp(metrics, (AC_TAB_W_DP * scaleState.value).toInt())
+        Mode.BUBBLE -> dp(metrics, (AC_BUBBLE_W_DP * scaleState.value).toInt())
+    }
+    private fun bubbleH(metrics: DisplayMetrics): Int = when (mode.value) {
+        Mode.PINNED -> dp(metrics, (AC_STRIP_HEIGHT_DP * stripScale.value).toInt())
+        Mode.DOCKED -> dp(metrics, (AC_STRIP_HEIGHT_DP * scaleState.value).toInt())
+        Mode.BUBBLE -> dp(metrics, (AC_BUBBLE_H_DP * scaleState.value).toInt())
+    }
 
     private fun dp(metrics: DisplayMetrics, dp: Int): Int = (dp * metrics.density).toInt()
+
+    /**
+     * The screen as it is right now. The app's own displayMetrics can lag behind a rotation and
+     * shrink in split screen, so the overlay measures the display itself.
+     */
+    private fun screen(): DisplayMetrics {
+        val ctx = appCtx ?: return android.content.res.Resources.getSystem().displayMetrics
+        val display = (ctx.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+            ?: return ctx.resources.displayMetrics
+        @Suppress("DEPRECATION")
+        return DisplayMetrics().also { display.getRealMetrics(it) }
+    }
 
     private fun entryPoint(ctx: Context): AcBubbleEntryPoint =
         EntryPointAccessors.fromApplication(ctx, AcBubbleEntryPoint::class.java)

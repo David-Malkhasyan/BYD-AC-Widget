@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">Скрывать поверх YouTube</string>
     <string name="ac_bubble_auto_close_label">Закрывать панель через</string>
     <string name="ac_bubble_seconds">%1$d с</string>
+    <string name="ac_bubble_color_label">Цвет</string>
+    <string name="ac_bubble_color_dark">Тёмный</string>
+    <string name="ac_bubble_color_graphite">Графит</string>
+    <string name="ac_bubble_color_blue">Синий</string>
+    <string name="ac_bubble_color_steel">Стальной</string>
+    <string name="ac_bubble_color_sky">Небесный</string>
+    <string name="ac_bubble_color_grey">Серый</string>
+    <string name="ac_bubble_color_light">Светлый</string>
     <string name="ac_bubble_opacity_label">Прозрачность</string>
     <string name="ac_bubble_scale_label">Размер</string>
     <string name="ac_bubble_reset_position">Сбросить позицию</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">Ноги+стекло</string>
     <string name="ac_bubble_wind_glass">Стекло</string>
     <string name="ac_bubble_write_failed">Машина не приняла команду климата</string>
+    <string name="ac_bubble_docked_label">Вкладка у края экрана</string>
+    <string name="ac_bubble_docked_desc">Вместо кнопки — вкладка, прижатая к краю экрана: температура, скорость вентилятора и направление обдува. Нажатие открывает панель, перетаскивание переносит её к другому краю.</string>
     <string name="ac_bubble_pinned_label">Всегда показывать панель</string>
     <string name="ac_bubble_pinned_desc">Панель климата видна постоянно, кнопка скрыта. Перетаскивайте панель за ручку сбоку.</string>
 </resources>

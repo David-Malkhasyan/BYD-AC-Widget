@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">Hide over YouTube</string>
     <string name="ac_bubble_auto_close_label">Close the strip after</string>
     <string name="ac_bubble_seconds">%1$d s</string>
+    <string name="ac_bubble_color_label">Colour</string>
+    <string name="ac_bubble_color_dark">Dark</string>
+    <string name="ac_bubble_color_graphite">Graphite</string>
+    <string name="ac_bubble_color_blue">Blue</string>
+    <string name="ac_bubble_color_steel">Steel</string>
+    <string name="ac_bubble_color_sky">Sky</string>
+    <string name="ac_bubble_color_grey">Grey</string>
+    <string name="ac_bubble_color_light">Light</string>
     <string name="ac_bubble_opacity_label">Opacity</string>
     <string name="ac_bubble_scale_label">Size</string>
     <string name="ac_bubble_reset_position">Reset position</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">Feet+glass</string>
     <string name="ac_bubble_wind_glass">Glass</string>
     <string name="ac_bubble_write_failed">The car did not accept the climate command</string>
+    <string name="ac_bubble_docked_label">Tab at the screen edge</string>
+    <string name="ac_bubble_docked_desc">Instead of the bubble, a tab docked to the edge of the screen: temperature, fan speed and airflow. Tap it to open the strip; drag it to the other edge.</string>
     <string name="ac_bubble_pinned_label">Always show the panel</string>
     <string name="ac_bubble_pinned_desc">The climate strip stays on screen and the bubble is hidden. Drag the strip by the handle at its side.</string>
 </resources>

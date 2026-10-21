@@ -10,6 +10,14 @@
     <string name="ac_bubble_hide_youtube_label">Хаваць па-над YouTube</string>
     <string name="ac_bubble_auto_close_label">Зачыняць панэль праз</string>
     <string name="ac_bubble_seconds">%1$d с</string>
+    <string name="ac_bubble_color_label">Колер</string>
+    <string name="ac_bubble_color_dark">Цёмны</string>
+    <string name="ac_bubble_color_graphite">Графіт</string>
+    <string name="ac_bubble_color_blue">Сіні</string>
+    <string name="ac_bubble_color_steel">Сталёвы</string>
+    <string name="ac_bubble_color_sky">Нябесны</string>
+    <string name="ac_bubble_color_grey">Шэры</string>
+    <string name="ac_bubble_color_light">Светлы</string>
     <string name="ac_bubble_opacity_label">Празрыстасць</string>
     <string name="ac_bubble_scale_label">Памер</string>
     <string name="ac_bubble_reset_position">Скінуць пазіцыю</string>
@@ -27,6 +35,8 @@
     <string name="ac_bubble_wind_feet_glass">Ногі+шкло</string>
     <string name="ac_bubble_wind_glass">Шкло</string>
     <string name="ac_bubble_write_failed">Машына не прыняла каманду клімату</string>
+    <string name="ac_bubble_docked_label">Укладка ля краю экрана</string>
+    <string name="ac_bubble_docked_desc">Замест кнопкі — укладка, прыціснутая да краю экрана: тэмпература, хуткасць вентылятара і кірунак абдзімання. Націск адкрывае панэль, перацягванне пераносіць яе да іншага краю.</string>
     <string name="ac_bubble_pinned_label">Заўсёды паказваць панэль</string>
     <string name="ac_bubble_pinned_desc">Панэль клімату бачная пастаянна, кнопка схаваная. Перацягвайце панэль за ручку збоку.</string>
 </resources>

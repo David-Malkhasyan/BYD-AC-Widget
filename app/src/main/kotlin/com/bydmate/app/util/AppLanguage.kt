@@ -30,6 +30,7 @@ fun applyAppLanguage(appContext: Context, localePreferences: LocalePreferences, 
     // applicationContext keeps a stale Configuration after setApplicationLocales,
     // which leaves the floating widget rendering against the old language.
     WidgetController.relocale(appContext)  // C-5: pass context from VM, not from widgetView
+    com.bydmate.app.acbubble.AcBubbleController.relocale(appContext)
     // The voice orb dialog may be on screen: swap its captions in place.
     ListeningOverlay.relocale(appContext)
     // Channel names live in the system settings: re-register them under the new language.
