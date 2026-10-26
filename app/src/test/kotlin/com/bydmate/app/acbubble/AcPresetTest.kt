@@ -80,6 +80,18 @@ class AcPresetTest {
     }
 
     @Test
+    fun `only what the car did not take is sent again`() {
+        val plan = AcPresets.apply(AcPreset(power = true, fanLevel = 2, tempC = 25), AcState(power = false))
+        // The climate woke up but dropped the fan; the temperature is not read yet.
+        val car = AcState(power = true, fanLevel = 4, tempC = null)
+        assertEquals(listOf(AcWrite.Command("风量2")), AcPresets.missed(plan, car))
+        assertEquals(emptyList<AcWrite>(), AcPresets.missed(plan, plan.target))
+        // Switched off as asked: nothing else to chase.
+        val off = AcPresets.apply(AcPreset(power = false, defrostRear = false), running)
+        assertEquals(emptyList<AcWrite>(), AcPresets.missed(off, AcState(power = false, defrostRear = true)))
+    }
+
+    @Test
     fun `every write a button can send reaches the allowlist`() {
         val allowlist = com.bydmate.app.data.vehicle.WriteAllowlist.loadProduction {
             java.io.File("src/main/assets/competitor-actions.json").readText()

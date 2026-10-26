@@ -45,7 +45,7 @@
     <string name="ac_preset_empty">Not set up</string>
     <string name="ac_preset_edit">Edit</string>
     <string name="ac_preset_editor_title">Button %1$d</string>
-    <string name="ac_preset_name">Name</string>
+    <string name="ac_preset_name">Name on the button</string>
     <string name="ac_preset_keep">Keep</string>
     <string name="ac_preset_on">on</string>
     <string name="ac_preset_off">off</string>

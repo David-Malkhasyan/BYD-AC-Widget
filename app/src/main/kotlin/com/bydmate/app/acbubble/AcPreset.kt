@@ -88,6 +88,15 @@ object AcPresets {
         return plan(before, back, current)
     }
 
+    /**
+     * The writes of [plan] the car has not taken: fields it reads back with another value.
+     * Unknown values are not sent again, nor anything once the climate is off as asked.
+     */
+    fun missed(plan: AcPlan, car: AcState): List<AcWrite> {
+        if (plan.target.power == false && car.power == false) return emptyList()
+        return plan.steps.filter { (f, _) -> valueOf(f, car).let { it != null && it != valueOf(f, plan.target) } }.map { it.second }
+    }
+
     private fun plan(want: AcState, fields: List<AcStateOverlay.Field>, current: AcState): AcPlan {
         var target = current
         fields.forEach { target = withValue(it, target, want) }

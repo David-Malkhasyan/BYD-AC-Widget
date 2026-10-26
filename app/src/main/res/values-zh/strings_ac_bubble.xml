@@ -45,7 +45,7 @@
     <string name="ac_preset_empty">未设置</string>
     <string name="ac_preset_edit">编辑</string>
     <string name="ac_preset_editor_title">按钮 %1$d</string>
-    <string name="ac_preset_name">名称</string>
+    <string name="ac_preset_name">按钮上的名称</string>
     <string name="ac_preset_keep">不变</string>
     <string name="ac_preset_on">开</string>
     <string name="ac_preset_off">关</string>

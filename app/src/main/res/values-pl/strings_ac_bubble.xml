@@ -45,7 +45,7 @@
     <string name="ac_preset_empty">Nieustawiony</string>
     <string name="ac_preset_edit">Edytuj</string>
     <string name="ac_preset_editor_title">Przycisk %1$d</string>
-    <string name="ac_preset_name">Nazwa</string>
+    <string name="ac_preset_name">Nazwa na przycisku</string>
     <string name="ac_preset_keep">Bez zmian</string>
     <string name="ac_preset_on">wł.</string>
     <string name="ac_preset_off">wył.</string>

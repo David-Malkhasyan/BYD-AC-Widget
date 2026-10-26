@@ -45,7 +45,7 @@
     <string name="ac_preset_empty">Не настроена</string>
     <string name="ac_preset_edit">Изменить</string>
     <string name="ac_preset_editor_title">Кнопка %1$d</string>
-    <string name="ac_preset_name">Название</string>
+    <string name="ac_preset_name">Название на кнопке</string>
     <string name="ac_preset_keep">Не менять</string>
     <string name="ac_preset_on">вкл</string>
     <string name="ac_preset_off">выкл</string>

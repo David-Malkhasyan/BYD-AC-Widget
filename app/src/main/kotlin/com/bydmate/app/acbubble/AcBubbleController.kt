@@ -85,10 +85,8 @@ object AcBubbleController {
     private const val TICK_MS = 1_000L
     /** After a tap's write, when to read the car back. */
     private const val READBACK_AFTER_WRITE_MS = 1_000L
-    /** Between the writes of one custom button, so the car takes them one by one. */
-    private const val PRESET_STEP_GAP_MS = 300L
-    /** After switching the climate on, before the rest of a custom button's values. */
-    private const val PRESET_POWER_ON_GAP_MS = 1_000L
+    /** After a custom button's writes, when to check which of them the car took. */
+    private const val PRESET_CHECK_AFTER_MS = 1_200L
     /** Lets Compose redraw at a new size before the window is measured again. */
     private const val RELAYOUT_DELAY_MS = 80L
     /** Strip scale changes smaller than this are not worth a relayout. */
@@ -591,19 +589,27 @@ object AcBubbleController {
         }
         overlay.request(plan.fields, plan.target, lastTouchMs)
         refresh()
-        val powerOnFirst = plan.fields.firstOrNull() == AcStateOverlay.Field.POWER && plan.target.power == true
-        scope?.launch { sendAll(plan.steps.map { it.second }, powerOnFirst) }
+        scope?.launch { sendAll(plan.steps.map { it.second }, plan) }
     }
 
     private suspend fun send(write: AcWrite) = sendAll(listOf(write))
 
-    /** Writes one after another; one message if any of them fails, one read-back at the end. */
-    private suspend fun sendAll(writes: List<AcWrite>, powerOnFirst: Boolean = false) {
+    /**
+     * Writes back to back, with no pause; one message if any of them fails, one read-back at the
+     * end. For a custom button's [plan], the car is read once its writes are out and whatever it
+     * did not take (a value dropped while the climate was still waking up) is sent once more.
+     */
+    private suspend fun sendAll(writes: List<AcWrite>, plan: AcPlan? = null) {
         val ctx = appCtx ?: return
-        var failed = false
-        writes.forEachIndexed { i, write ->
-            if (i > 0) delay(if (i == 1 && powerOnFirst) PRESET_POWER_ON_GAP_MS else PRESET_STEP_GAP_MS)
-            if (!writeOne(ctx, write)) failed = true
+        var failed = writes.count { !writeOne(ctx, it) } > 0
+        if (plan != null) {
+            delay(PRESET_CHECK_AFTER_MS)
+            readClimate(ctx)
+            val missed = AcPresets.missed(plan, carNow())
+            if (missed.isNotEmpty()) {
+                Log.i(TAG, "preset: sending again $missed")
+                if (missed.count { !writeOne(ctx, it) } > 0) failed = true
+            }
         }
         if (failed) toast(R.string.ac_bubble_write_failed)
         // Read the car back shortly after, so the strip shows what it really did (a refused
