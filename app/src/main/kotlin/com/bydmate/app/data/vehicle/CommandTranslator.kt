@@ -87,6 +87,7 @@ object CommandTranslator {
 
         // ── Climate ── competitor-actions.json ────────────────────────────────
         "打开空调通风" to Resolved("ac_flow_only_on",   1),  // competitor val=1
+        "关闭空调通风" to Resolved("ac_flow_only_off",  0),  // competitor val=0
         "吹前挡"      to Resolved("defrost_front_on",  1),  // competitor val=1
         "关闭吹前挡"  to Resolved("defrost_front_off", 0),  // competitor val=0
 
@@ -98,6 +99,14 @@ object CommandTranslator {
         "吹脚"     to Resolved("ac_wind_mode", 3),
         "吹脚除霜" to Resolved("ac_wind_mode", 4),
         "除霜"     to Resolved("ac_wind_mode", 5),
+        // 6 and 7 come from BYDAutoAcDevice AC_WINDMODE_* (the AC bubble writes them already).
+        "吹面吹脚除霜" to Resolved("ac_wind_mode", 6),
+        "吹面除霜"     to Resolved("ac_wind_mode", 7),
+
+        // ── Climate ── A/C compressor (AC_COMPRESSOR_MODE_SET, dev=1000) ───────
+        // Off keeps the climate running as heater/fan only: the stock "A/C" button.
+        "打开压缩机" to Resolved("ac_compressor_on",  1),
+        "关闭压缩机" to Resolved("ac_compressor_off", 0),
 
         // ── Locks ── LIVE_VALIDATED ───────────────────────────────────────────
         "车门上锁"  to Resolved("doors_lock",   2),

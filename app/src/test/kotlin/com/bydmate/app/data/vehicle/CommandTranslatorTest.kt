@@ -463,6 +463,17 @@ class CommandTranslatorTest {
         }
     }
 
+    @Test fun `face and windshield and all-direction airflow map to ac_wind_mode 7 and 6`() {
+        assertEquals(CommandTranslator.Resolved("ac_wind_mode", 7), one("吹面除霜"))
+        assertEquals(CommandTranslator.Resolved("ac_wind_mode", 6), one("吹面吹脚除霜"))
+    }
+
+    @Test fun `compressor and ventilation-off commands map to their allowlist entries`() {
+        assertEquals(CommandTranslator.Resolved("ac_compressor_on", 1), one("打开压缩机"))
+        assertEquals(CommandTranslator.Resolved("ac_compressor_off", 0), one("关闭压缩机"))
+        assertEquals(CommandTranslator.Resolved("ac_flow_only_off", 0), one("关闭空调通风"))
+    }
+
     // 吹前挡 drives defrost_front_on on a different fid — the new 除霜 entry must not
     // have shadowed it.
     @Test fun `windshield defrost command still maps to defrost_front_on`() {

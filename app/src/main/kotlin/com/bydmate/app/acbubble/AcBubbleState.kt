@@ -190,6 +190,11 @@ class AcStateOverlay(private val holdMs: Long = DEFAULT_HOLD_MS) {
         pending[fieldOf(action)] = Pending(target, nowMs + holdMs)
     }
 
+    /** Several fields at once (a custom button), all held like one tap. */
+    fun request(fields: Collection<Field>, target: AcState, nowMs: Long) {
+        fields.forEach { pending[it] = Pending(target, nowMs + holdMs) }
+    }
+
     /**
      * [car] with every still-pending tap applied. Settled or expired taps are dropped. A tap on a
      * field in [unsupported] (the car answered "no such feature" for its read) is the only truth

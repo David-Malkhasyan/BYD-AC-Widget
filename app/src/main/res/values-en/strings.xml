@@ -1075,6 +1075,11 @@
     <string name="auto_act_wind_feet">Airflow: feet</string>
     <string name="auto_act_wind_feet_windshield">Airflow: feet and windshield</string>
     <string name="auto_act_wind_windshield">Airflow: windshield</string>
+    <string name="auto_act_wind_face_windshield">Airflow: face and windshield</string>
+    <string name="auto_act_wind_all">Airflow: all directions</string>
+    <string name="auto_act_ventilation_no_ac_off">Ventilation (no AC) Off</string>
+    <string name="auto_act_compressor_on">A/C compressor on</string>
+    <string name="auto_act_compressor_off">A/C compressor off (heater only)</string>
     <string name="auto_act_recirculation">Recirculation</string>
     <string name="auto_act_fresh_air">Fresh Air</string>
     <string name="auto_act_windshield_defog_on">Windshield Defog On</string>

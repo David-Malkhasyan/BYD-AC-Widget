@@ -1231,6 +1231,11 @@
     <string name="auto_act_wind_feet">Обдув: в ноги</string>
     <string name="auto_act_wind_feet_windshield">Обдув: ноги и стекло</string>
     <string name="auto_act_wind_windshield">Обдув: на стекло</string>
+    <string name="auto_act_wind_face_windshield">Обдув: лицо и стекло</string>
+    <string name="auto_act_wind_all">Обдув: во все стороны</string>
+    <string name="auto_act_ventilation_no_ac_off">Обдув без AC выкл</string>
+    <string name="auto_act_compressor_on">Компрессор A/C вкл</string>
+    <string name="auto_act_compressor_off">Компрессор A/C выкл (только печка)</string>
     <string name="auto_act_recirculation">Циркуляция внутр.</string>
     <string name="auto_act_fresh_air">Циркуляция внешн.</string>
     <string name="auto_act_windshield_defog_on">Обдув лобового вкл</string>

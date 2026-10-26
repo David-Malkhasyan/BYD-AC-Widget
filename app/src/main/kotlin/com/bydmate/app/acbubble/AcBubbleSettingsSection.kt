@@ -228,6 +228,7 @@ fun AcBubbleSettingsSection() {
                 style = SettingButtonStyle.Secondary,
                 enabled = enabled,
             )
+            AcPresetSettingsBlock(prefs, enabled)
         }
     }
 }

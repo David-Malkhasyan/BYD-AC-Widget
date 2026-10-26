@@ -1152,6 +1152,11 @@
     <string name="auto_act_wind_feet">出风：吹脚</string>
     <string name="auto_act_wind_feet_windshield">出风：吹脚除霜</string>
     <string name="auto_act_wind_windshield">出风：除霜</string>
+    <string name="auto_act_wind_face_windshield">出风：吹面除霜</string>
+    <string name="auto_act_wind_all">出风：吹面吹脚除霜</string>
+    <string name="auto_act_ventilation_no_ac_off">通风（不开AC）关</string>
+    <string name="auto_act_compressor_on">压缩机开</string>
+    <string name="auto_act_compressor_off">压缩机关（仅暖风）</string>
     <string name="auto_act_recirculation">内循环</string>
     <string name="auto_act_fresh_air">外循环</string>
     <string name="auto_act_windshield_defog_on">前挡风除雾开</string>

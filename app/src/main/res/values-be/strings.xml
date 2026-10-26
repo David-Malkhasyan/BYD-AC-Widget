@@ -1227,6 +1227,11 @@
     <string name="auto_act_wind_feet">Абдзьмух: у ногі</string>
     <string name="auto_act_wind_feet_windshield">Абдзьмух: ногі і шкло</string>
     <string name="auto_act_wind_windshield">Абдзьмух: на шкло</string>
+    <string name="auto_act_wind_face_windshield">Абдзьмух: твар і шкло</string>
+    <string name="auto_act_wind_all">Абдзьмух: ва ўсе бакі</string>
+    <string name="auto_act_ventilation_no_ac_off">Абдзьмуванне без AC выкл</string>
+    <string name="auto_act_compressor_on">Кампрэсар A/C укл</string>
+    <string name="auto_act_compressor_off">Кампрэсар A/C выкл (толькі грэлка)</string>
     <string name="auto_act_recirculation">Цыркуляцыя ўнутр.</string>
     <string name="auto_act_fresh_air">Цыркуляцыя знешн.</string>
     <string name="auto_act_windshield_defog_on">Абдзьмуванне лабавога ўкл</string>

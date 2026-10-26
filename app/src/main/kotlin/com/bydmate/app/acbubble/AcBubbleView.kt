@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -53,6 +54,16 @@ private const val ROW_GAP_DP = 6
 private const val STRIP_PAD_V_DP = 6
 /** Strip height: two rows of buttons plus padding. Shared with the controller to centre it on the bubble. */
 const val AC_STRIP_HEIGHT_DP = 2 * BUTTON_DP + ROW_GAP_DP + 2 * STRIP_PAD_V_DP
+/** The row of custom buttons under the two rows of controls. */
+private const val PRESET_ROW_DP = 46
+/**
+ * Width of a control row: five buttons, a separator and a stepper. The custom buttons share it
+ * evenly, so their row lines up with the two above whether there is one button or four.
+ */
+private const val CONTROL_ROW_W_DP = 476f
+
+/** Strip height with or without the custom buttons' row; the tab and the grip match it. */
+fun acStripHeightDp(presetRow: Boolean): Int = AC_STRIP_HEIGHT_DP + if (presetRow) PRESET_ROW_DP + ROW_GAP_DP else 0
 /** Gap on each side of a button; twice this separates two glows. */
 private const val BUTTON_SPACING_DP = 3
 /** Strip open/close duration; the controller waits this long before shrinking the window. */
@@ -93,7 +104,8 @@ fun AcBubble(state: AcState, t: AcTheme, alpha: Float, scale: Float, pressed: Bo
  * the strip, which is exactly as tall, next to it.
  */
 @Composable
-fun AcTab(state: AcState, t: AcTheme, alpha: Float, scale: Float, dockRight: Boolean, pressed: Boolean) {
+@Suppress("LongParameterList") // one flat input per visual element
+fun AcTab(state: AcState, t: AcTheme, alpha: Float, scale: Float, heightDp: Int, dockRight: Boolean, pressed: Boolean) {
     val r = (TAB_CORNER_DP * scale).dp
     val shape = if (dockRight) RoundedCornerShape(topStart = r, bottomStart = r) else RoundedCornerShape(topEnd = r, bottomEnd = r)
     val press by animateFloatAsState(if (pressed) BUBBLE_PRESSED_SCALE else 1f, tween(BUBBLE_PRESS_MS), label = "press")
@@ -106,7 +118,7 @@ fun AcTab(state: AcState, t: AcTheme, alpha: Float, scale: Float, dockRight: Boo
                 scaleX = press; scaleY = press
                 transformOrigin = TransformOrigin(if (dockRight) 1f else 0f, 0.5f)
             }
-            .size((AC_TAB_W_DP * scale).dp, (AC_STRIP_HEIGHT_DP * scale).dp)
+            .size((AC_TAB_W_DP * scale).dp, (heightDp * scale).dp)
             .background(t.glass(alpha), shape)
             .padding(vertical = (6 * scale).dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,10 +136,10 @@ fun AcTab(state: AcState, t: AcTheme, alpha: Float, scale: Float, dockRight: Boo
 
 /** Drag handle that stands in for the bubble while the strip is always shown. */
 @Composable
-fun AcGrip(t: AcTheme, alpha: Float, scale: Float) {
+fun AcGrip(t: AcTheme, alpha: Float, scale: Float, heightDp: Int) {
     Column(
         modifier = Modifier
-            .size((GRIP_W_DP * scale).dp, (AC_STRIP_HEIGHT_DP * scale).dp)
+            .size((GRIP_W_DP * scale).dp, (heightDp * scale).dp)
             .background(t.glass(alpha), RoundedCornerShape((12 * scale).dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy((4 * scale).dp, Alignment.CenterVertically),
@@ -141,6 +153,7 @@ fun AcGrip(t: AcTheme, alpha: Float, scale: Float) {
 /**
  * The control strip that slides out of the bubble: two rows, so it stays compact enough for a
  * rotated screen. Modes, recirculation and the fan above; airflow, defrost and temperature below.
+ * The user's custom buttons, when any are shown, get a third row of their own.
  */
 @Composable
 @Suppress("LongParameterList") // one flat input per visual element
@@ -151,7 +164,9 @@ fun AcStrip(
     scale: Float,
     visible: Boolean,
     opensLeft: Boolean,
+    presets: List<IndexedValue<AcPreset>>,
     onAction: (AcAction) -> Unit,
+    onPreset: (Int) -> Unit,
 ) {
     // Opening and closing are drawn, not laid out: the window keeps its size during the
     // animation, so the overlay is never re-measured frame by frame.
@@ -174,7 +189,7 @@ fun AcStrip(
                 translationX = (1f - progress) * if (opensLeft) slidePx else -slidePx
                 transformOrigin = TransformOrigin(if (opensLeft) 1f else 0f, 0.5f)
             }
-            .height((AC_STRIP_HEIGHT_DP * scale).dp)
+            .height((acStripHeightDp(presets.isNotEmpty()) * scale).dp)
             .background(t.glass(alpha), shape)
             .padding(horizontal = (8 * scale).dp, vertical = (STRIP_PAD_V_DP * scale).dp),
         verticalArrangement = Arrangement.spacedBy((ROW_GAP_DP * scale).dp),
@@ -233,6 +248,38 @@ fun AcStrip(
                 Text(tempText(state.tempC, scale, digits = 26), color = t.fg)
             }
         }
+        if (presets.isNotEmpty()) {
+            StripRow((PRESET_ROW_DP * scale).dp) {
+                val w = (CONTROL_ROW_W_DP / presets.size - 2 * BUTTON_SPACING_DP) * scale
+                presets.forEach { (slot, p) ->
+                    PresetButton(w.dp, scale, t, p.name.ifBlank { "${slot + 1}" }, AcPresets.matches(p, state)) { onPreset(slot) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A custom button: its name on a faint pill, and the same LED and glow as the controls above
+ * while the car shows every value it sets.
+ */
+@Composable
+private fun PresetButton(width: Dp, scale: Float, t: AcTheme, label: String, on: Boolean, onClick: () -> Unit) {
+    val fg by animateColorAsState(if (on) t.on else t.fg, tween(AC_STRIP_ANIM_MS), label = "fg")
+    val glow by animateColorAsState(if (on) t.glow else t.track.copy(alpha = 0.35f), tween(AC_STRIP_ANIM_MS), label = "glow")
+    Column(
+        modifier = Modifier
+            .padding(horizontal = (BUTTON_SPACING_DP * scale).dp)
+            .size(width, (PRESET_ROW_DP * scale).dp)
+            .background(glow, RoundedCornerShape((14 * scale).dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = (8 * scale).dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(label, color = fg, fontSize = (15 * scale).sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+        Indicator(on, scale, t)
     }
 }
 

@@ -1068,6 +1068,11 @@
     <string name="auto_act_wind_feet">Fluxo de ar: pés</string>
     <string name="auto_act_wind_feet_windshield">Fluxo de ar: pés e para-brisa</string>
     <string name="auto_act_wind_windshield">Fluxo de ar: para-brisa</string>
+    <string name="auto_act_wind_face_windshield">Fluxo de ar: rosto e para-brisa</string>
+    <string name="auto_act_wind_all">Fluxo de ar: todas as direções</string>
+    <string name="auto_act_ventilation_no_ac_off">Ventilação (sem AC) desligada</string>
+    <string name="auto_act_compressor_on">Compressor A/C ligado</string>
+    <string name="auto_act_compressor_off">Compressor A/C desligado (só aquecimento)</string>
     <string name="auto_act_recirculation">Circulação interna</string>
     <string name="auto_act_fresh_air">Circulação externa</string>
     <string name="auto_act_windshield_defog_on">Desemb. para-brisa lig.</string>

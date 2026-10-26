@@ -85,6 +85,10 @@ object AcBubbleController {
     private const val TICK_MS = 1_000L
     /** After a tap's write, when to read the car back. */
     private const val READBACK_AFTER_WRITE_MS = 1_000L
+    /** Between the writes of one custom button, so the car takes them one by one. */
+    private const val PRESET_STEP_GAP_MS = 300L
+    /** After switching the climate on, before the rest of a custom button's values. */
+    private const val PRESET_POWER_ON_GAP_MS = 1_000L
     /** Lets Compose redraw at a new size before the window is measured again. */
     private const val RELAYOUT_DELAY_MS = 80L
     /** Strip scale changes smaller than this are not worth a relayout. */
@@ -151,6 +155,10 @@ object AcBubbleController {
     private val theme = mutableStateOf(AcTheme.DEFAULT)
     /** The strip's own scale: the user's, or smaller when the screen is too narrow for it. */
     private val stripScale = mutableStateOf(1f)
+    /** The custom buttons shown on the strip, by slot; empty hides their row. */
+    private val presets = mutableStateOf<List<IndexedValue<AcPreset>>>(emptyList())
+    /** What each lit custom button changed, so a second tap can put it back. In memory only. */
+    private val presetSnapshots = mutableMapOf<Int, AcState>()
     private var callbacks: ComponentCallbacks? = null
     private var lastTouchMs = 0L
     private val stepJobs = mutableMapOf<String, Job>()
@@ -195,6 +203,7 @@ object AcBubbleController {
         theme.value = AcTheme.of(prefs.getThemeKey())
         mode.value = modeOf(prefs)
         dockRight.value = prefs.isDockRight()
+        presets.value = shownPresets(prefs.getPresets())
         loadPosition(prefs, metrics)
 
         val p = WindowManager.LayoutParams(
@@ -225,8 +234,9 @@ object AcBubbleController {
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
                 when (mode.value) {
-                    Mode.PINNED -> AcGrip(theme.value, alphaState.value, stripScale.value)
-                    Mode.DOCKED -> AcTab(shown.value, theme.value, alphaState.value, scaleState.value, dockRight.value, pressed.value)
+                    Mode.PINNED -> AcGrip(theme.value, alphaState.value, stripScale.value, stripHeightDp())
+                    Mode.DOCKED -> AcTab(shown.value, theme.value, alphaState.value, scaleState.value, stripHeightDp(),
+                        dockRight.value, pressed.value)
                     Mode.BUBBLE -> AcBubble(shown.value, theme.value, alphaState.value, scaleState.value, pressed.value)
                 }
             }
@@ -237,7 +247,8 @@ object AcBubbleController {
             setViewTreeLifecycleOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
-                AcStrip(shown.value, theme.value, alphaState.value, stripScale.value, expanded.value, opensLeft.value, ::onAction)
+                AcStrip(shown.value, theme.value, alphaState.value, stripScale.value, expanded.value, opensLeft.value,
+                    presets.value, ::onAction, ::onPreset)
             }
             visibility = View.GONE
         }
@@ -278,6 +289,12 @@ object AcBubbleController {
         // The window is on screen only after its first layout pass: open the pinned strip then.
         if (isPinned) container.post { guard("pinned_open") { expand() } }
     }
+
+    private fun shownPresets(all: List<AcPreset>): List<IndexedValue<AcPreset>> =
+        all.withIndex().filter { it.value.enabled && !it.value.isEmpty }
+
+    /** The strip's height in dp at scale 1: taller while custom buttons are shown. */
+    private fun stripHeightDp(): Int = acStripHeightDp(presets.value.isNotEmpty())
 
     private fun modeOf(prefs: AcBubblePreferences): Mode = modeOf(prefs.isPinned(), prefs.isDocked())
     private fun modeOf(pinned: Boolean, docked: Boolean): Mode = when {
@@ -421,6 +438,26 @@ object AcBubbleController {
                 }
             }
         }
+        s.launch {
+            prefs.presetsFlow().collect { all ->
+                val next = shownPresets(all)
+                if (next == presets.value) return@collect
+                // An edited button starts fresh: its old "before" no longer belongs to it.
+                val old = presets.value
+                presetSnapshots.keys.retainAll { slot -> next.firstOrNull { it.index == slot } == old.firstOrNull { it.index == slot } }
+                presets.value = next
+                // The row of custom buttons changes the strip's height: lay it out again.
+                if (next.isEmpty() != old.isEmpty()) {
+                    clampBubble(screen())
+                    placeWindow()
+                    if (stripLaidOut) {
+                        val open = expanded.value
+                        removeStrip()
+                        if (open || isPinned) root?.postDelayed({ guard("presets") { expand() } }, RELAYOUT_DELAY_MS)
+                    }
+                }
+            }
+        }
         // Ticks expire held taps and fold the strip after the idle timeout.
         s.launch {
             while (isActive) {
@@ -537,8 +574,47 @@ object AcBubbleController {
         }
     }
 
-    private suspend fun send(write: AcWrite) {
+    /** A custom button: the first tap sends its values, a tap while it is lit puts back the old ones. */
+    private fun onPreset(slot: Int) = guard("preset") {
+        lastTouchMs = SystemClock.uptimeMillis()
+        val preset = presets.value.firstOrNull { it.index == slot }?.value ?: return@guard
+        val current = shown.value
+        val plan = if (AcPresets.matches(preset, current)) {
+            AcPresets.revert(preset, presetSnapshots.remove(slot), current)
+        } else {
+            presetSnapshots[slot] = current
+            AcPresets.apply(preset, current)
+        }
+        if (plan == null) {
+            toast(R.string.ac_preset_nothing_to_undo)
+            return@guard
+        }
+        overlay.request(plan.fields, plan.target, lastTouchMs)
+        refresh()
+        val powerOnFirst = plan.fields.firstOrNull() == AcStateOverlay.Field.POWER && plan.target.power == true
+        scope?.launch { sendAll(plan.steps.map { it.second }, powerOnFirst) }
+    }
+
+    private suspend fun send(write: AcWrite) = sendAll(listOf(write))
+
+    /** Writes one after another; one message if any of them fails, one read-back at the end. */
+    private suspend fun sendAll(writes: List<AcWrite>, powerOnFirst: Boolean = false) {
         val ctx = appCtx ?: return
+        var failed = false
+        writes.forEachIndexed { i, write ->
+            if (i > 0) delay(if (i == 1 && powerOnFirst) PRESET_POWER_ON_GAP_MS else PRESET_STEP_GAP_MS)
+            if (!writeOne(ctx, write)) failed = true
+        }
+        if (failed) toast(R.string.ac_bubble_write_failed)
+        // Read the car back shortly after, so the strip shows what it really did (a refused
+        // value, or a mode the car changed along with ours) without waiting for the next poll.
+        scope?.launch {
+            delay(READBACK_AFTER_WRITE_MS)
+            readClimate(ctx)
+        }
+    }
+
+    private suspend fun writeOne(ctx: Context, write: AcWrite): Boolean {
         // A write that has left for the car finishes its audit row and verdict even if the bubble
         // is torn down meanwhile.
         val result = try {
@@ -557,16 +633,8 @@ object AcBubbleController {
         } catch (e: Exception) {
             Result.failure(e)
         }
-        result.onFailure {
-            Log.w(TAG, "write $write failed: ${it.message}")
-            toast(R.string.ac_bubble_write_failed)
-        }.onSuccess { Log.i(TAG, "write $write ok") }
-        // Read the car back shortly after, so the strip shows what it really did (a refused
-        // value, or a mode the car changed along with ours) without waiting for the next poll.
-        scope?.launch {
-            delay(READBACK_AFTER_WRITE_MS)
-            readClimate(ctx)
-        }
+        result.onFailure { Log.w(TAG, "write $write failed: ${it.message}") }.onSuccess { Log.i(TAG, "write $write ok") }
+        return result.isSuccess
     }
 
     /** Shown in the app's language, not the head unit's: the plain app context follows the system locale. */
@@ -683,7 +751,7 @@ object AcBubbleController {
         // Whatever the side, the whole window stays on the screen.
         if (stripLaidOut) p.x = AcBubbleLayout.clampWindowX(p.x, p.width, metrics.widthPixels)
         // The strip is taller than the bubble; centre it on the bubble's row.
-        val stripPx = dp(metrics, (AC_STRIP_HEIGHT_DP * stripScale.value).toInt())
+        val stripPx = dp(metrics, (stripHeightDp() * stripScale.value).toInt())
         p.y = if (stripLaidOut) {
             (bubbleY - (stripPx - bubbleH(metrics)) / 2).coerceIn(0, (metrics.heightPixels - stripPx).coerceAtLeast(0))
         } else {
@@ -775,8 +843,8 @@ object AcBubbleController {
         Mode.BUBBLE -> dp(metrics, (AC_BUBBLE_W_DP * scaleState.value).toInt())
     }
     private fun bubbleH(metrics: DisplayMetrics): Int = when (mode.value) {
-        Mode.PINNED -> dp(metrics, (AC_STRIP_HEIGHT_DP * stripScale.value).toInt())
-        Mode.DOCKED -> dp(metrics, (AC_STRIP_HEIGHT_DP * scaleState.value).toInt())
+        Mode.PINNED -> dp(metrics, (stripHeightDp() * stripScale.value).toInt())
+        Mode.DOCKED -> dp(metrics, (stripHeightDp() * scaleState.value).toInt())
         Mode.BUBBLE -> dp(metrics, (AC_BUBBLE_H_DP * scaleState.value).toInt())
     }
 

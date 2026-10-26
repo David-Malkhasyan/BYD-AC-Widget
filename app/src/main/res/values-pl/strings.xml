@@ -1227,6 +1227,11 @@
     <string name="auto_act_wind_feet">Nawiew: na nogi</string>
     <string name="auto_act_wind_feet_windshield">Nawiew: nogi i szyba</string>
     <string name="auto_act_wind_windshield">Nawiew: na szybę</string>
+    <string name="auto_act_wind_face_windshield">Nawiew: twarz i szyba</string>
+    <string name="auto_act_wind_all">Nawiew: wszystkie kierunki</string>
+    <string name="auto_act_ventilation_no_ac_off">Nawiew bez AC wył.</string>
+    <string name="auto_act_compressor_on">Sprężarka A/C wł.</string>
+    <string name="auto_act_compressor_off">Sprężarka A/C wył. (tylko ogrzewanie)</string>
     <string name="auto_act_recirculation">Obieg wewnętrzny</string>
     <string name="auto_act_fresh_air">Obieg zewnętrzny</string>
     <string name="auto_act_windshield_defog_on">Nawiew na przednią szybę wł.</string>

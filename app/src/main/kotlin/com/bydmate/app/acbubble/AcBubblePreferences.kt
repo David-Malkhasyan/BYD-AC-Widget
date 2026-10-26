@@ -72,6 +72,13 @@ class AcBubblePreferences(private val prefs: SharedPreferences) {
         prefs.edit().putInt(KEY_AUTO_CLOSE_SEC, sec.coerceIn(AUTO_CLOSE_MIN_SEC, AUTO_CLOSE_MAX_SEC)).apply()
     fun autoCloseSecFlow(): Flow<Int> = flowOf(KEY_AUTO_CLOSE_SEC) { getAutoCloseSec() }
 
+    /** The custom buttons, always [AcPresets.MAX] slots (empty ones are disabled). */
+    fun getPresets(): List<AcPreset> = AcPresets.decode(prefs.getString(KEY_PRESETS, null))
+    fun setPresets(presets: List<AcPreset>) = prefs.edit().putString(KEY_PRESETS, AcPresets.encode(presets)).apply()
+    fun setPreset(slot: Int, preset: AcPreset) =
+        setPresets(getPresets().toMutableList().also { if (slot in it.indices) it[slot] = preset })
+    fun presetsFlow(): Flow<List<AcPreset>> = flowOf(KEY_PRESETS) { getPresets() }
+
     private fun <T> flowOf(key: String, read: () -> T): Flow<T> = callbackFlow {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
             if (changedKey == key) trySend(read())
@@ -96,6 +103,7 @@ class AcBubblePreferences(private val prefs: SharedPreferences) {
         const val KEY_DOCKED = "ac_bubble_docked"
         const val KEY_DOCK_RIGHT = "ac_bubble_dock_right"
         const val KEY_DOCK_Y = "ac_bubble_dock_y"
+        const val KEY_PRESETS = "ac_bubble_presets"
         const val NO_POSITION = Int.MIN_VALUE
         const val ALPHA_MIN = 0.3f
         const val SCALE_MIN = 0.7f
