@@ -43,16 +43,17 @@ open class SettingsRepository @Inject constructor(
         /** "auto" (historical/live blend, default) or "manual" (user temperature table). */
         const val KEY_RANGE_CALC_METHOD = "range_calc_method"
         const val KEY_MANUAL_RANGE_TABLE = "manual_range_table_json"
-        const val KEY_LAST_KNOWN_SOC = "last_known_soc"
-        const val KEY_LAST_SOC_TIMESTAMP = "last_soc_timestamp"
         const val KEY_LAST_ENERGYDATA_IMPORT_TS = "last_energydata_import_ts"
         const val KEY_SETUP_COMPLETED = "setup_completed"
         const val KEY_DEDUP_CLEANUP_DONE = "dedup_cleanup_done"
+        const val KEY_ENERGY_IDS_RECYCLED = "energy_ids_recycled"
         const val KEY_IDLE_DRAIN_CLEANUP_DONE = "idle_drain_cleanup_done"
         const val KEY_CONSUMPTION_RECALC_DONE = "consumption_recalc_done"
         const val KEY_IDLE_DRAIN_V2_CLEANUP = "idle_drain_v2_cleanup"
         /** One-time repair of trips holding an impossible energydata kWh value. */
         const val KEY_ENERGY_KWH_SANITY_DONE = "energydata_kwh_sanity_v1_done"
+        /** The same repair for trips TripRecorder stored before it had the ceiling (#428). */
+        const val KEY_NATIVE_KWH_SANITY_DONE = "native_kwh_sanity_v1_done"
         /** DriveMode trigger value "0" (old "NORMAL") rewritten to the real NORMAL code "3". */
         const val KEY_DRIVEMODE_RULE_MIGRATION = "drivemode_rule_migration_v2"
         /** Trunk trigger value "0" (old "closed") rewritten to the real closed code "2". */
@@ -128,7 +129,6 @@ open class SettingsRepository @Inject constructor(
         const val KEY_TG_LOG_AUTO_SEND = "tg_log_auto_send"
         const val KEY_DATA_SOURCE = "data_source"
         const val KEY_MAP_TILE_SOURCE = "map_tile_source"
-        const val KEY_AUTOSERVICE_ENABLED = "autoservice_enabled"
         /** "true" hides the native BYD voice assistant (pm disable-user); default "false". */
         const val KEY_DISABLE_NATIVE_ASSISTANT = "disable_native_assistant"
         /** Confirmed car type (VehicleKindMonitor): "EV" or "HYBRID"; absent until confirmed. */
@@ -140,8 +140,8 @@ open class SettingsRepository @Inject constructor(
         const val KEY_LAST_MILEAGE_KM = "last_mileage_km"
         const val KEY_LAST_CAPACITY_KWH = "last_capacity_kwh"
         const val KEY_LAST_STATE_TS = "last_state_ts"
-        // ChargingStateStore baseline. Kept separate from KEY_LAST_KNOWN_SOC
-        // (which TrackingService overwrites on every DiPars poll) so the
+        // ChargingStateStore baseline. Kept separate from the old live-SOC key
+        // "last_known_soc" (once overwritten on every DiPars poll) so the
         // cascade detector's pre-charging baseline survives polling and
         // runCatchUp can compute a real SOC delta on cold start.
         const val KEY_CHARGING_BASELINE_SOC = "charging_baseline_soc"
@@ -156,8 +156,12 @@ open class SettingsRepository @Inject constructor(
         const val KEY_CATCHUP_JOURNAL = "catchup_journal"
         /** Comma-separated TechCard ids in the order the driver dragged them into. */
         const val KEY_TECH_CARD_ORDER = "tech_card_order"
+        /** Last positive BMS lifetime energy counter (kWh): the cycle count when the car reads none. */
+        const val KEY_BMS_LIFETIME_KWH_LAST = "bms_lifetime_kwh_last"
         /** "true" once a card has actually been dragged — hides the reorder hint. */
         const val KEY_TECH_ORDER_HINT_SEEN = "tech_card_order_hint_seen"
+        /** The owner's winter and summer tyre-sensor sets, TyreSetsCodec JSON; in the backup with the settings. */
+        const val KEY_TYRE_SETS = "tyre_sets"
         /** Comma-separated automation rule ids in the order the driver dragged them into (#249). */
         const val KEY_AUTOMATION_RULE_ORDER = "automation_rule_order"
         const val KEY_MIGRATION_V2_4_17 = "migration_v2_4_17_done"
@@ -180,8 +184,6 @@ open class SettingsRepository @Inject constructor(
         const val KEY_MINIMAX_TTS_KEY = "minimax_tts_key"
 
         const val KEY_AGENT_ENABLED = "agent_enabled"
-        // legacy, unused since field-fix wave (agent uses KEY_OPENROUTER_MODEL)
-        const val KEY_AGENT_MODEL = "agent_model"
 
         const val DEFAULT_BATTERY_CAPACITY = "72.9"
         const val DEFAULT_HOME_TARIFF = "0.20"
@@ -214,12 +216,16 @@ open class SettingsRepository @Inject constructor(
             Currency("UAH", "₴"),
             Currency("KZT", "₸"),
             Currency("AMD", "֏"),
+            Currency("AZN", "₼"),
+            Currency("GEL", "₾"),
             Currency("USD", "$"),
             Currency("EUR", "€"),
             Currency("PLN", "zł"),
             Currency("CNY", "¥"),
             Currency("UZS", "UZS"),
             Currency("KGS", "сом"),
+            Currency("MDL", "MDL"),
+            Currency("RON", "lei"),
         )
     }
 
@@ -266,15 +272,6 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun getCurrencySymbol(): String = getCurrency().symbol
 
-    suspend fun getTripCostTariff(): Double {
-        val raw = getString(KEY_TRIP_COST_TARIFF, "home")
-        return when (raw) {
-            "home" -> getHomeTariff()
-            "dc" -> getDcTariff()
-            else -> raw.parseNumericSetting() ?: getHomeTariff()
-        }
-    }
-
     suspend fun getTripCostTariffKey(): String =
         getString(KEY_TRIP_COST_TARIFF, "home")
 
@@ -289,12 +286,6 @@ open class SettingsRepository @Inject constructor(
             KEY_DC_TARIFF to dcRate.toString(),
             KEY_TRIP_COST_TARIFF to tripRule,
         ))
-
-    suspend fun getConsumptionGoodThreshold(): Double =
-        getString(KEY_CONSUMPTION_GOOD, DEFAULT_CONSUMPTION_GOOD).parseNumericSetting() ?: 20.0
-
-    suspend fun getConsumptionBadThreshold(): Double =
-        getString(KEY_CONSUMPTION_BAD, DEFAULT_CONSUMPTION_BAD).parseNumericSetting() ?: 30.0
 
     /** Live (good, bad) pair for UI coloring. Emits on every Settings edit. */
     fun observeConsumptionThresholds(): Flow<Pair<Double, Double>> = combine(
@@ -311,9 +302,6 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun setRangeCalcMethod(value: String) =
         setString(KEY_RANGE_CALC_METHOD, value)
-
-    fun observeRangeCalcMethod(): Flow<String> =
-        observeString(KEY_RANGE_CALC_METHOD).map { it ?: DEFAULT_RANGE_CALC_METHOD }
 
     private fun manualRangePointToJson(p: ManualRangePoint): JSONObject = JSONObject().apply {
         put("temperatureC", p.temperatureC)
@@ -347,17 +335,6 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun resetManualRangeTable() = setManualRangeTable(defaultManualRangeTable())
 
-    suspend fun saveLastKnownSoc(soc: Int) {
-        setString(KEY_LAST_KNOWN_SOC, soc.toString())
-        setString(KEY_LAST_SOC_TIMESTAMP, System.currentTimeMillis().toString())
-    }
-
-    suspend fun getLastKnownSoc(): Int? =
-        getString(KEY_LAST_KNOWN_SOC, "").toIntOrNull()
-
-    suspend fun getLastSocTimestamp(): Long =
-        getString(KEY_LAST_SOC_TIMESTAMP, "0").toLongOrNull() ?: 0L
-
     suspend fun getLastEnergyImportTs(): Long =
         getString(KEY_LAST_ENERGYDATA_IMPORT_TS, "0").toLongOrNull() ?: 0L
 
@@ -378,6 +355,12 @@ open class SettingsRepository @Inject constructor(
     suspend fun setDedupCleanupDone() =
         setString(KEY_DEDUP_CLEANUP_DONE, "true")
 
+    suspend fun isEnergyIdsRecycled(): Boolean =
+        getString(KEY_ENERGY_IDS_RECYCLED, "false") == "true"
+
+    suspend fun setEnergyIdsRecycled() =
+        setString(KEY_ENERGY_IDS_RECYCLED, "true")
+
     suspend fun isIdleDrainCleanupDone(): Boolean =
         getString(KEY_IDLE_DRAIN_CLEANUP_DONE, "false") == "true"
 
@@ -395,6 +378,12 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun setEnergyKwhSanityDone() =
         setString(KEY_ENERGY_KWH_SANITY_DONE, "true")
+
+    suspend fun isNativeKwhSanityDone(): Boolean =
+        getString(KEY_NATIVE_KWH_SANITY_DONE, "false") == "true"
+
+    suspend fun setNativeKwhSanityDone() =
+        setString(KEY_NATIVE_KWH_SANITY_DONE, "true")
 
     suspend fun getMapTileSource(): String =
         getString(KEY_MAP_TILE_SOURCE, DEFAULT_MAP_TILE_SOURCE)
@@ -428,13 +417,8 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun getDataSource(): DataSource = DataSource.ENERGYDATA
 
-    fun observeDataSource(): Flow<String?> = observeString(KEY_DATA_SOURCE)
-
     suspend fun getChargingBaselineSoc(): Int? =
         getString(KEY_CHARGING_BASELINE_SOC, "").toIntOrNull()
-
-    suspend fun setChargingBaselineSoc(soc: Int) =
-        setString(KEY_CHARGING_BASELINE_SOC, soc.toString())
 
     suspend fun getChargePending(): Boolean =
         getString(KEY_CHARGE_PENDING, "") == "true"
@@ -445,20 +429,18 @@ open class SettingsRepository @Inject constructor(
     suspend fun getLastMileageKm(): Float? =
         getString(KEY_LAST_MILEAGE_KM, "").toFloatOrNull()
 
-    suspend fun setLastMileageKm(km: Float?) =
-        setString(KEY_LAST_MILEAGE_KM, km?.toString() ?: "")
-
     suspend fun getLastCapacityKwh(): Float? =
         getString(KEY_LAST_CAPACITY_KWH, "").toFloatOrNull()
 
-    suspend fun setLastCapacityKwh(kwh: Float?) =
-        setString(KEY_LAST_CAPACITY_KWH, kwh?.toString() ?: "")
+    suspend fun getBmsLifetimeKwhLast(): Float? =
+        getString(KEY_BMS_LIFETIME_KWH_LAST, "").toFloatOrNull()?.takeIf { it > 0f }
+
+    suspend fun setBmsLifetimeKwhLast(kwh: Float) {
+        if (kwh > 0f) setString(KEY_BMS_LIFETIME_KWH_LAST, kwh.toString())
+    }
 
     suspend fun getLastStateTs(): Long =
         getString(KEY_LAST_STATE_TS, "0").toLongOrNull() ?: 0L
-
-    suspend fun setLastStateTs(ts: Long) =
-        setString(KEY_LAST_STATE_TS, ts.toString())
 
     /** Trip 1/2 dashboard counter anchors (n = 1 or 2). Generic settings rows, no migration. */
     suspend fun getTripResetState(n: Int): TripResetState = TripResetState(
@@ -617,6 +599,12 @@ open class SettingsRepository @Inject constructor(
 
     suspend fun setTechCardOrder(ids: String) =
         setString(KEY_TECH_CARD_ORDER, ids)
+
+    suspend fun getTyreSets(): String =
+        getString(KEY_TYRE_SETS, "")
+
+    suspend fun setTyreSets(json: String) =
+        setString(KEY_TYRE_SETS, json)
 
     suspend fun isTechOrderHintSeen(): Boolean =
         getString(KEY_TECH_ORDER_HINT_SEEN, "false") == "true"

@@ -406,6 +406,22 @@ object AppModule {
         }
     }
 
+    /** Start time on trip tombstones (#348): energydata ids are recycled when the car recreates its DB. */
+    internal val MIGRATION_23_24 = object : Migration(23, 24) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE trip_tombstones ADD COLUMN start_ts INTEGER")
+        }
+    }
+
+    /** Battery power and the cumulative battery-energy counter on every trip point (trip window scrub). */
+    internal val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE trip_points ADD COLUMN battery_power_w REAL")
+            db.execSQL("ALTER TABLE trip_points ADD COLUMN battery_energy_wh REAL")
+            db.execSQL("ALTER TABLE trip_points ADD COLUMN energy_run INTEGER")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -413,7 +429,7 @@ object AppModule {
             Room.databaseBuilder(
                 context,
                 AppDatabase::class.java,
-                "bydmate.db"
+                AppDatabase.FILE_NAME
             )
         )
             .build()
@@ -421,7 +437,7 @@ object AppModule {
 
     /** Every production migration: the app database and a restored archive of an older schema share them. */
     fun withMigrations(builder: RoomDatabase.Builder<AppDatabase>): RoomDatabase.Builder<AppDatabase> =
-        builder.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+        builder.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
 
     @Provides fun provideTripDao(db: AppDatabase): TripDao = db.tripDao()
     @Provides fun provideTripPointDao(db: AppDatabase): TripPointDao = db.tripPointDao()
@@ -583,6 +599,74 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideDtcScanRepository(
+        @ApplicationContext context: Context,
+        helper: com.bydmate.app.data.vehicle.HelperClient,
+        settings: SettingsRepository,
+        sink: com.bydmate.app.data.backup.TelegramBackupSink,
+        vehicleKindMonitor: com.bydmate.app.data.nativestack.VehicleKindMonitor,
+    ): com.bydmate.app.data.dtc.DtcScanRepository = com.bydmate.app.data.dtc.DtcScanRepository(
+        helper = helper,
+        prefs = context.getSharedPreferences(com.bydmate.app.data.dtc.DtcScanRepository.PREFS_NAME, Context.MODE_PRIVATE),
+        settings = settings,
+        sink = sink,
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+        liveSample = { com.bydmate.app.service.TrackingService.lastSample },
+        serviceRunning = { com.bydmate.app.service.TrackingService.isRunning.value },
+        elapsedNow = { android.os.SystemClock.elapsedRealtime() },
+        wallNow = { System.currentTimeMillis() },
+        describer = com.bydmate.app.data.dtc.DtcDescriber(
+            open = { name -> context.assets.open("dtc/$name").reader(Charsets.UTF_8) },
+            autoType = { com.bydmate.app.data.dtc.CarAutoType.read(helper) },
+            energy = {
+                when (vehicleKindMonitor.kind.value) {
+                    com.bydmate.app.data.nativestack.VehicleKind.EV -> com.bydmate.app.data.dtc.DtcEnergy.EV
+                    com.bydmate.app.data.nativestack.VehicleKind.HYBRID -> com.bydmate.app.data.dtc.DtcEnergy.DM
+                    com.bydmate.app.data.nativestack.VehicleKind.UNKNOWN -> com.bydmate.app.data.dtc.DtcEnergy.UNKNOWN
+                }
+            },
+        ),
+    )
+
+    @Provides
+    @Singleton
+    fun provideTpmsRepository(
+        @ApplicationContext context: Context,
+        helper: com.bydmate.app.data.vehicle.HelperClient,
+        settings: SettingsRepository,
+    ): com.bydmate.app.data.tpms.TpmsRepository = com.bydmate.app.data.tpms.TpmsRepository(
+        helper = helper,
+        prefs = context.getSharedPreferences(com.bydmate.app.data.tpms.TpmsRepository.PREFS_NAME, Context.MODE_PRIVATE),
+        settings = settings,
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+        liveSample = { com.bydmate.app.service.TrackingService.lastSample },
+        serviceRunning = { com.bydmate.app.service.TrackingService.isRunning.value },
+        elapsedNow = { android.os.SystemClock.elapsedRealtime() },
+        wallNow = { System.currentTimeMillis() },
+    )
+
+    @Provides
+    @Singleton
+    fun provideEcuFirmwareRepository(
+        @ApplicationContext context: Context,
+        helper: com.bydmate.app.data.vehicle.HelperClient,
+        settings: SettingsRepository,
+        sink: com.bydmate.app.data.backup.TelegramBackupSink,
+    ): com.bydmate.app.data.dtc.EcuFirmwareRepository = com.bydmate.app.data.dtc.EcuFirmwareRepository(
+        helper = helper,
+        prefs = context.getSharedPreferences(com.bydmate.app.data.dtc.EcuFirmwareRepository.PREFS_NAME, Context.MODE_PRIVATE),
+        settings = settings,
+        sink = sink,
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+        liveSample = { com.bydmate.app.service.TrackingService.lastSample },
+        serviceRunning = { com.bydmate.app.service.TrackingService.isRunning.value },
+        elapsedNow = { android.os.SystemClock.elapsedRealtime() },
+        wallNow = { System.currentTimeMillis() },
+        huBuild = { android.os.Build.FINGERPRINT.orEmpty() },
+    )
+
+    @Provides
+    @Singleton
     fun provideWriteAllowlist(@ApplicationContext context: Context): com.bydmate.app.data.vehicle.WriteAllowlist =
         com.bydmate.app.data.vehicle.WriteAllowlist.loadProduction {
             context.assets.open("competitor-actions.json").bufferedReader().use { it.readText() }
@@ -614,8 +698,8 @@ object AppModule {
 
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // Hilt-injected dependencies
     fun provideVehicleApi(
-        parsReader: com.bydmate.app.data.nativestack.ParsReader,
         autoservice: com.bydmate.app.data.autoservice.AutoserviceClient,
         helper: com.bydmate.app.data.vehicle.HelperClient,
         allowlist: com.bydmate.app.data.vehicle.WriteAllowlist,
@@ -623,10 +707,11 @@ object AppModule {
         seatChannelStore: com.bydmate.app.data.vehicle.SeatChannelStore,
         windowChannelStore: com.bydmate.app.data.vehicle.WindowChannelStore,
         seatCommandJournal: com.bydmate.app.data.vehicle.SeatCommandJournal,
+        fidCatalogManager: com.bydmate.app.data.nativestack.FidCatalogManager,
     ): com.bydmate.app.data.vehicle.VehicleApi =
         com.bydmate.app.data.vehicle.VehicleApiImpl(
-            parsReader, autoservice, helper, allowlist, writeLogDao, seatChannelStore, windowChannelStore,
-            seatCommandJournal,
+            autoservice, helper, allowlist, writeLogDao, seatChannelStore, windowChannelStore,
+            seatCommandJournal, rearCatalog = { fidCatalogManager.catalog },
         )
 
     @Provides
@@ -709,6 +794,8 @@ object AppModule {
         @ApplicationContext ctx: Context,
     ): com.bydmate.app.split.SplitPreferences =
         com.bydmate.app.split.SplitPreferencesImpl(ctx)
+            // The cluster code computes enable_freeform_support from the split state too.
+            .also { com.bydmate.app.cluster.ClusterProjectionManager.splitPreferences = it }
 
     @Provides
     @Singleton
@@ -756,6 +843,8 @@ object AppModule {
         // Alternative to our freeform split for firmwares that gate the freeform flag (#139).
         // Only reached while the native-mode switch is on; off for the whole fleet by default.
         nativeLauncher = com.bydmate.app.split.NativeSplitLauncher(ctx, journal),
+        // #385: below Android 12 (DiLink 3/4) a start is attempted and its outcome is checked.
+        platformSdk = android.os.Build.VERSION.SDK_INT,
         // The firmware's own 3:7 split (OTA V1.6). isApplicable() is false on every other
         // firmware, so this is inert for the rest of the fleet.
         split37 = com.bydmate.app.split.Split37Engine(

@@ -1,190 +1,49 @@
 package com.bydmate.app.ui.tech
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bydmate.app.data.nativestack.VehicleKind
+import com.bydmate.app.data.autoservice.Pm25Reader
+import com.bydmate.app.data.carstatus.CarStatusReader
+import com.bydmate.app.data.dtc.DtcBlockNames
+import com.bydmate.app.data.dtc.DtcErasePlan
+import com.bydmate.app.data.dtc.DtcLabels
+import com.bydmate.app.data.dtc.DtcParser
+import com.bydmate.app.data.dtc.DtcSavedScan
+import com.bydmate.app.data.dtc.DtcScanRepository
+import com.bydmate.app.data.nativestack.MotorPresence
 import com.bydmate.app.data.nativestack.VehicleKindMonitor
 import com.bydmate.app.data.repository.ChargeRepository
 import com.bydmate.app.data.repository.SettingsRepository
 import com.bydmate.app.domain.battery.AvgSocProvider
+import com.bydmate.app.domain.battery.BatteryCalibration
 import com.bydmate.app.domain.battery.BatteryStateRepository
 import com.bydmate.app.service.TrackingService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Live state of the «Техника» screen. Everything vehicle-side rides the poller that already
- * feeds the Dashboard (TrackingService.lastData) — this screen adds no second loop. A null
- * value is rendered as «—»; a card whose every value is null is not drawn at all, which is
- * what firmwares outside Leopard 3 will mostly produce.
- */
-data class TechPanelUiState(
-    val autoserviceOnline: Boolean? = null,
-    /** Key of the single open «?» hint, null when none is open. */
-    val openHint: String? = null,
-    /** Cards in the order they are drawn, hidden ones included. */
-    val cardOrder: List<TechCard> = TechCardOrder.DEFAULT,
-    /** Shown until the driver drags a card for the first time. */
-    val showOrderHint: Boolean = false,
-    // Батарея · сейчас
-    val soc: Int? = null,
-    /** Energy left in the pack as the BMS reports it, kWh — not derived from SoC. */
-    val remainKwh: Double? = null,
-    val soh: Float? = null,
-    val batTemp: Int? = null,
-    val hvVoltage: Int? = null,
-    val powerKw: Double? = null,
-    val batteryPowerW: Double? = null,
-    val batteryCapacityKwh: Double? = null,
-    val voltage12v: Double? = null,
-    val insulationKohm: Int? = null,
-    // Лимиты BMS + Ячейки
-    val bmsMaxChargeKw: Double? = null,
-    val bmsMaxDischargeAllowKw: Double? = null,
-    val bmsMaxDischargeKw: Int? = null,
-    val cellMin: Double? = null,
-    val cellMax: Double? = null,
-    // Моторы и инверторы
-    val motorTempFront: Int? = null,
-    val motorTempRear: Int? = null,
-    val inverterTempFront: Int? = null,
-    val inverterTempRear: Int? = null,
-    val motorRpmFront: Int? = null,
-    val motorRpmRear: Int? = null,
-    val motorCurrentFront: Float? = null,
-    val motorCurrentRear: Float? = null,
-    val pedalAccel: Int? = null,
-    val pedalBrake: Int? = null,
-    // Климат
-    val compressorW: Int? = null,
-    val acStatus: Int? = null,
-    val insideTemp: Int? = null,
-    val exteriorTemp: Int? = null,
-    // Шины
-    val tirePressFL: Int? = null,
-    val tirePressFR: Int? = null,
-    val tirePressRL: Int? = null,
-    val tirePressRR: Int? = null,
-    val tyreTempFL: Int? = null,
-    val tyreTempFR: Int? = null,
-    val tyreTempRL: Int? = null,
-    val tyreTempRR: Int? = null,
-    // Батарея · история
-    val lifetimeKm: Float? = null,
-    val lifetimeKwh: Float? = null,
-    val avgSocSinceCharge: Int? = null,
-    val avgSocAllTime: Int? = null,
-    /** Everything the app has ever seen charged into the pack, kWh; null until the first session. */
-    val lifetimeChargedKwh: Double? = null,
-    /** Pack size from settings, the divisor of the full-cycle count. */
-    val nominalCapacityKwh: Double = 0.0,
-    // DM-i hybrid (#184): the car's own fuel readings, polled only on a confirmed hybrid.
-    val vehicleKind: VehicleKind = VehicleKind.UNKNOWN,
-    val engineRpm: Int? = null,
-    val fuelPercent: Int? = null,
-    val fuelRangeKm: Int? = null,
-    val evRangeKm: Int? = null,
-    val mileageHevKm: Int? = null,
-    val mileageEvKm: Int? = null,
-    val fuelTotalL: Double? = null,
-) {
-    val isHybrid: Boolean
-        get() = vehicleKind == VehicleKind.HYBRID
-
-    val cellDelta: Double?
-        get() = if (cellMin != null && cellMax != null) cellMax - cellMin else null
-
-    /**
-     * Share of the pack drained (or filled) per hour at the current power. 1% of the pack is
-     * capacity/100 kWh = capacity×10 W·h, so W / (capacity×10) is %/h. Needs the capacity the
-     * app already knows from settings — never a guessed pack size.
-     */
-    val percentPerHour: Double?
-        get() = if (batteryPowerW != null && batteryCapacityKwh != null && batteryCapacityKwh > 0.0) {
-            batteryPowerW / (batteryCapacityKwh * 10.0)
-        } else null
-
-    val showBatteryNow: Boolean
-        get() = anyOf(
-            soc, remainKwh, soh, batTemp, hvVoltage, powerKw, batteryPowerW,
-            voltage12v, insulationKohm,
-        )
-    val showLimitsAndCells: Boolean
-        get() = anyOf(bmsMaxChargeKw, bmsMaxDischargeAllowKw, bmsMaxDischargeKw, cellMin, cellMax)
-    val showMotors: Boolean
-        get() = anyOf(
-            motorTempFront, motorTempRear, inverterTempFront, inverterTempRear,
-            motorRpmFront, motorRpmRear, pedalAccel, pedalBrake,
-            motorCurrentFront, motorCurrentRear, engineRpm,
-        )
-    val showClimate: Boolean
-        get() = anyOf(compressorW, acStatus, insideTemp, exteriorTemp)
-    val showFuel: Boolean
-        get() = isHybrid && anyOf(
-            fuelPercent, fuelRangeKm, evRangeKm, engineRpm, mileageHevKm, mileageEvKm, fuelTotalL,
-        )
-    val showTyres: Boolean
-        get() = anyOf(
-            tirePressFL, tirePressFR, tirePressRL, tirePressRR,
-            tyreTempFL, tyreTempFR, tyreTempRL, tyreTempRR,
-        )
-    val showHistory: Boolean
-        get() = anyOf(
-            lifetimeKm, lifetimeKwh, avgSocSinceCharge, avgSocAllTime,
-            // The «Полных циклов» row lives here; a car that logged charges but answers no
-            // lifetime counter still has a number to show. A zero sum has nothing to divide.
-            lifetimeChargedKwh?.takeIf { it > 0.0 },
-        )
-
-    /** [cardOrder] without the cards this car has no data for. */
-    val visibleCards: List<TechCard>
-        get() = cardOrder.filter { isVisible(it) }
-
-    fun isVisible(card: TechCard): Boolean = when (card) {
-        TechCard.BATTERY_NOW -> showBatteryNow
-        TechCard.LIMITS -> showLimitsAndCells
-        TechCard.HISTORY -> showHistory
-        TechCard.MOTORS -> showMotors
-        TechCard.CLIMATE -> showClimate
-        TechCard.TYRES -> showTyres
-        TechCard.FUEL -> showFuel
-    }
-
-    val hasAnyCard: Boolean
-        get() = showBatteryNow || showLimitsAndCells || showMotors ||
-            showClimate || showTyres || showHistory || showFuel
-
-    private fun anyOf(vararg values: Any?): Boolean = values.any { it != null }
-}
-
-/**
- * Standing still, the front motor's fid answers -1 rather than 0 (seen on two consecutive
- * frames on the car). That is idle, not motion, so anything in -1..0 reads as a plain 0.
- * Reverse spins the motors properly negative (hundreds of rpm), which passes through.
- */
-internal fun rpmForDisplay(raw: Int?): Int? = raw?.let { if (it in -1..0) 0 else it }
-
-/**
- * Some cars never fill the remaining-energy fid and answer a flat 0 (a hybrid at SoC 39%, no push
- * event in 12 minutes). A pack that still holds charge cannot be empty, so 0 next to a SoC above
- * zero is "no data" and renders as «—». Nothing is derived from SoC in its place.
- */
-internal fun remainKwhForDisplay(remainKwh: Double?, soc: Int?): Double? =
-    remainKwh?.takeUnless { it <= 0.0 && soc != null && soc > 0 }
-
 @HiltViewModel
+@Suppress("LongParameterList", "TooManyFunctions") // Hilt constructor; one loader per card
 class TechPanelViewModel @Inject constructor(
     private val batteryStateRepository: BatteryStateRepository,
     private val avgSocProvider: AvgSocProvider,
     private val settingsRepository: SettingsRepository,
     private val chargeRepository: ChargeRepository,
     private val vehicleKindMonitor: VehicleKindMonitor,
+    private val carStatusReader: CarStatusReader,
+    private val dtcScanRepository: DtcScanRepository,
+    private val pm25Reader: Pm25Reader,
+    private val motorPresence: MotorPresence,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TechPanelUiState())
@@ -196,10 +55,34 @@ class TechPanelViewModel @Inject constructor(
         viewModelScope.launch { loadAvgSoc() }
         viewModelScope.launch { loadCardOrder() }
         viewModelScope.launch { loadFullCycles() }
+        observeCalibrationMarks()
+        observeCarStatus()
+        observeDtcScan()
         viewModelScope.launch {
             vehicleKindMonitor.kind.collect { kind ->
                 _uiState.update { it.copy(vehicleKind = kind, cardOrder = TechCardOrder.forKind(it.cardOrder, kind)) }
             }
+        }
+    }
+
+    @Volatile private var pm25Seen = false
+
+    /**
+     * PM2.5 only while the screen is on display, never in the global poll: the screen runs this
+     * from a LaunchedEffect, so leaving the tab cancels it (the view model itself outlives the
+     * tab). A car without the sensor gets one read and no more; with it, once a minute, and a
+     * failed read after that clears the values but keeps polling, also when the screen comes
+     * back (the sensor is remembered for the view model's life).
+     */
+    suspend fun pollPm25() {
+        while (true) {
+            val pm = runCatching { pm25Reader.read() }.getOrNull()
+            if (pm == null && !pm25Seen) return
+            pm25Seen = true
+            _uiState.update {
+                it.copy(pm25In = pm?.inside, pm25Out = pm?.outside, pm25LevelIn = pm?.levelIn, pm25LevelOut = pm?.levelOut)
+            }
+            delay(PM25_REFRESH_MS)
         }
     }
 
@@ -246,6 +129,8 @@ class TechPanelViewModel @Inject constructor(
                             soc = data?.soc,
                             remainKwh = remainKwhForDisplay(data?.batteryRemainKwh, data?.soc),
                             batTemp = data?.avgBatTemp,
+                            batTempMin = data?.minBatTemp,
+                            batTempMax = data?.maxBatTemp,
                             hvVoltage = data?.hvVoltage,
                             powerKw = data?.power,
                             batteryPowerW = data?.batteryPowerW,
@@ -257,10 +142,11 @@ class TechPanelViewModel @Inject constructor(
                             bmsMaxDischargeKw = data?.bmsMaxDischargeKw,
                             cellMin = data?.minCellVoltage,
                             cellMax = data?.maxCellVoltage,
-                            motorTempFront = data?.motorTempFront,
-                            motorTempRear = data?.motorTempRear,
-                            inverterTempFront = data?.inverterTempFront,
-                            inverterTempRear = data?.inverterTempRear,
+                            // #426: a motor the car does not have reports made-up temperatures.
+                            motorTempFront = data?.motorTempFront?.takeUnless { motorPresence.frontAbsent },
+                            motorTempRear = data?.motorTempRear?.takeUnless { motorPresence.rearAbsent },
+                            inverterTempFront = data?.inverterTempFront?.takeUnless { motorPresence.frontAbsent },
+                            inverterTempRear = data?.inverterTempRear?.takeUnless { motorPresence.rearAbsent },
                             motorRpmFront = data?.motorRpmFront,
                             motorRpmRear = data?.motorRpmRear,
                             motorCurrentFront = data?.motorCurrentFront,
@@ -286,6 +172,7 @@ class TechPanelViewModel @Inject constructor(
                             mileageHevKm = data?.mileageHevKm,
                             mileageEvKm = data?.mileageEvKm,
                             fuelTotalL = data?.fuelTotalL,
+                            gear = data?.gear,
                         )
                     }
                 }
@@ -301,12 +188,13 @@ class TechPanelViewModel @Inject constructor(
         val state = runCatching { batteryStateRepository.refresh() }.getOrNull()
         _uiState.update {
             if (state == null || !state.autoserviceAvailable) {
-                it.copy(autoserviceOnline = false)
+                it.copy(autoserviceOnline = false, bmsLifetimeKwhForCycles = state?.lifetimeKwhForCycles)
             } else {
                 it.copy(
                     soh = state.sohPercent,
                     lifetimeKm = state.lifetimeKm,
                     lifetimeKwh = state.lifetimeKwh,
+                    bmsLifetimeKwhForCycles = state.lifetimeKwhForCycles,
                 )
             }
         }
@@ -325,10 +213,152 @@ class TechPanelViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Last full charge and last calibration off the app's own charge log, kept live: the unplug
+     * catch-up writes the row up to ~30 s after the gun comes out, often with this screen open.
+     */
+    private fun observeCalibrationMarks() {
+        viewModelScope.launch {
+            chargeRepository.getAllCharges()
+                .map { charges -> BatteryCalibration.marks(charges) to charges.size }
+                .catch { Log.w(TAG, "calibration marks failed: ${it.message}") }
+                .collect { (marks, rows) ->
+                    Log.d(TAG, "calibration marks: full=${marks.lastFullChargeTs} cal=${marks.lastCalibrationTs} rows=$rows")
+                    _uiState.update {
+                        it.copy(lastFullChargeTs = marks.lastFullChargeTs, lastCalibrationTs = marks.lastCalibrationTs)
+                    }
+                }
+        }
+    }
+
+    /**
+     * Warnings and the service countdown off the stock car status provider: one read on open,
+     * then a re-read per change of a watched key. A car without the provider gets no observer.
+     */
+    private fun observeCarStatus() {
+        suspend fun apply(): Boolean {
+            val status = runCatching { carStatusReader.read() }.getOrNull()
+            _uiState.update {
+                it.copy(faultCount = status?.faults, serviceDaysLeft = status?.daysLeft, serviceKmLeft = status?.kmLeft)
+            }
+            return status != null
+        }
+        viewModelScope.launch {
+            if (!apply()) return@launch
+            carStatusReader.changes().collect { apply() }
+        }
+        logCarStateChanges()
+    }
+
+    /**
+     * One line per change of what the car-state rows show. PM2.5 enters by level and visibility
+     * only: the raw value moves every tick on a car with the sensor, and is in the dump anyway.
+     */
+    private fun logCarStateChanges() {
+        viewModelScope.launch {
+            _uiState
+                .map { s ->
+                    listOf(
+                        s.faultCount, s.serviceDaysLeft, s.serviceKmLeft,
+                        s.pm25LevelIn, s.pm25LevelOut, s.pm25InShown != null, s.pm25OutShown != null,
+                    ) to s
+                }
+                .distinctUntilChanged { a, b -> a.first == b.first }
+                .collect { (_, s) ->
+                    Log.i(
+                        TAG,
+                        "carState: faults=${s.faultCount} days=${s.serviceDaysLeft} km=${s.serviceKmLeft} " +
+                            "pm25=${s.pm25In}/${s.pm25Out} lvl ${s.pm25LevelIn}/${s.pm25LevelOut}",
+                    )
+                }
+        }
+    }
+
+    /** The scan's own state, the last finished scan and whether the service runs (the button needs it). */
+    private fun observeDtcScan() {
+        viewModelScope.launch {
+            dtcScanRepository.state.collect { scan -> _uiState.update { it.copy(dtcScan = scan) } }
+        }
+        viewModelScope.launch {
+            dtcScanRepository.eraseUpdates().collect { (erase, at) ->
+                _uiState.update { it.copy(dtcErase = erase, dtcErasedAt = at) }
+            }
+        }
+        viewModelScope.launch {
+            dtcScanRepository.last.collect { last ->
+                dtcSaved = last
+                val summary = last?.let { DtcParser.summarize(it.results) }
+                val blocks = last?.results.orEmpty().associate { it.addr to DtcBlockNames.identify(it.addr, it.idUds) }
+                _uiState.update {
+                    it.copy(
+                        dtcSummary = summary, dtcCheckedAt = last?.at, dtcDescriptions = emptyMap(), dtcBlocks = blocks,
+                        dtcEraseLocked = last?.eraseLocked.orEmpty(),
+                    )
+                }
+                if (summary == null) return@collect
+                // The tables load once, off the main thread; the codes show without text until then.
+                val descriptions = runCatching { dtcScanRepository.describe(summary) }.getOrDefault(emptyMap())
+                _uiState.update { if (it.dtcSummary === summary) it.copy(dtcDescriptions = descriptions) else it }
+            }
+        }
+        viewModelScope.launch {
+            TrackingService.isRunning.collect { running -> _uiState.update { it.copy(serviceRunning = running) } }
+        }
+    }
+
+    /** A tap on «Сканировать» or «Сканировать снова»; the repository re-checks P and ignores a second tap. */
+    fun scanDtc() = dtcScanRepository.start()
+
+    /** The saved scan the erase targets come from. */
+    @Volatile private var dtcSaved: DtcSavedScan? = null
+
+    /**
+     * A confirmed «Стереть все» ([addr] null) or «стереть ›» on a block (all addresses of its
+     * group). A missing or stale scan sends an empty list, which the repository refuses with
+     * «нажмите Сканировать».
+     */
+    fun eraseDtc(addr: Int?) {
+        val now = System.currentTimeMillis()
+        val addrs = if (addr == null) {
+            DtcErasePlan.eligible(dtcSaved, now)
+        } else {
+            DtcErasePlan.eligibleBlock(dtcSaved, addr, now)
+        }
+        dtcScanRepository.startErase(addrs ?: IntArray(0))
+    }
+
+    /** Opens the saved scan; never starts a new one. */
+    fun openDtcDialog() {
+        _uiState.update { it.copy(dtcDialogOpen = true, dtcSendResult = null) }
+        viewModelScope.launch {
+            val ready = runCatching { settingsRepository.getTgBackupConfig().configured }.getOrDefault(false)
+            _uiState.update { it.copy(dtcTelegramReady = ready) }
+        }
+    }
+
+    fun closeDtcDialog() {
+        _uiState.update { it.copy(dtcDialogOpen = false) }
+    }
+
+    /** One send per tap, nothing queued; a tap while one is on its way does nothing. */
+    fun sendDtc(labels: DtcLabels) {
+        if (_uiState.value.dtcSending) return
+        _uiState.update { it.copy(dtcSending = true, dtcSendResult = null) }
+        viewModelScope.launch {
+            val result = dtcScanRepository.sendLastScan(labels)
+            _uiState.update { it.copy(dtcSending = false, dtcSendResult = result) }
+        }
+    }
+
     private suspend fun loadAvgSoc() {
         val avg = runCatching { avgSocProvider.compute() }.getOrNull() ?: return
         _uiState.update {
             it.copy(avgSocSinceCharge = avg.sinceCharge, avgSocAllTime = avg.allTime)
         }
+    }
+
+    private companion object {
+        const val PM25_REFRESH_MS = 60_000L
+        const val TAG = "TechPanel"
     }
 }

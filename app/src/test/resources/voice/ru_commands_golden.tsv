@@ -222,7 +222,17 @@ utterance	expected	category	danger
 открой багажник	开后备箱	locks	
 закрой багажник	关后备箱	locks	
 открой багажнек	开后备箱	locks	
-открой передний багажник	UNRECOGNIZED	locks	
+открой передний багажник	前备箱打开	locks	
+открыть передний багажник	前备箱打开	locks	
+откройте передний багажник	前备箱打开	locks	
+открой багажник спереди	前备箱打开	locks	
+закрой багажник спереди	前备箱关闭	locks	
+открой передний багажнек	前备箱打开	locks	
+открой передний багажник и закрой окна	前备箱打开+车窗关闭	locks	
+приоткрой передний багажник	UNRECOGNIZED	locks	danger
+передний багажник	UNRECOGNIZED	locks	
+мы откроем передний багажник	UNRECOGNIZED	locks	danger
+открой передний и задний багажник	UNRECOGNIZED	locks	danger
 сделай погромче	VOL:+1	media	
 громче	VOL:+1	media	
 сделай потише	VOL:-1	media	
@@ -249,10 +259,8 @@ utterance	expected	category	danger
 какая погода	UNRECOGNIZED	misc	
 сколько времени	UNRECOGNIZED	misc	
 позвони маме	UNRECOGNIZED	misc	
-открой навигатор	UNRECOGNIZED	misc	
 открой карту	UNRECOGNIZED	misc	
 открой настройки	UNRECOGNIZED	misc	
-поехали домой	UNRECOGNIZED	misc	
 сколько у меня останется заряда когда я доеду до точки	UNRECOGNIZED	misc	
 так ну ка проверим как ты работаешь	UNRECOGNIZED	misc	
 выключайся	UNRECOGNIZED	misc	
@@ -275,7 +283,6 @@ utterance	expected	category	danger
 открой окружение	UNRECOGNIZED	misc	danger
 закрой вкладку	UNRECOGNIZED	misc	
 открой почту	UNRECOGNIZED	misc	
-запусти навигацию	UNRECOGNIZED	misc	
 открой окна и люк наполовину	UNRECOGNIZED	sunroof	danger
 открой люк наполовину и окна	UNRECOGNIZED	sunroof	danger
 открой окно водителя и закрой люк	主驾打开100+天窗打开0	sunroof	
@@ -516,7 +523,7 @@ utterance	expected	category	danger
 запри машину	车门上锁	locks	
 заблокируй двери машины	车门上锁	locks	
 открой задний багажник	开后备箱	locks	
-закрой передний багажник	UNRECOGNIZED	locks	
+закрой передний багажник	前备箱关闭	locks	
 мы откроем багажник	UNRECOGNIZED	locks	danger
 багажник открывается	UNRECOGNIZED	locks	
 открой багажник климат	UNRECOGNIZED	locks	
@@ -579,7 +586,6 @@ utterance	expected	category	danger
 включай подогрев руля	方向盘加热	steering heat	
 сохрани заряд	UNRECOGNIZED	misc	
 сколько заряда	UNRECOGNIZED	misc	
-включи навигатор	UNRECOGNIZED	misc
 выключи фары	UNRECOGNIZED	misc
 выключи подогрев руля и подогрев сидений	UNRECOGNIZED	seats
 выключи подогрев сиденья водителя и подогрев сиденья пассажира	UNRECOGNIZED	seats
@@ -671,3 +677,57 @@ utterance	expected	category	danger
 включи проекцию	UNRECOGNIZED	hud	
 выключи проекцию на приборке	UNRECOGNIZED	hud	
 худ	UNRECOGNIZED	hud	
+включи обдув в лицо	吹面	climate	
+обдув на лицо	吹面	climate	
+сделай обдув в лицо и ноги	吹面吹脚	climate	
+включи обдув в лицо и в ноги	吹面吹脚	climate	
+включи обдув в ноги	吹脚	climate	
+обдув на ноги	吹脚	climate	
+включи обдув в ноги и на стекло	吹脚除霜	climate	
+включи обдув на стекло	除霜	climate	
+обдув на лобовое стекло	除霜	climate	
+поехали домой	NAVIGATE:home	navigation	
+едем домой	NAVIGATE:home	navigation	
+маршрут домой	ROUTE:home	navigation	
+проложи маршрут домой	ROUTE:home	navigation	
+построй маршрут домой	ROUTE:home	navigation	
+поехали на работу	NAVIGATE:work	navigation	
+едем на работу	NAVIGATE:work	navigation	
+маршрут на работу	ROUTE:work	navigation	
+проложи маршрут на работу	ROUTE:work	navigation	
+построй маршрут на работу	ROUTE:work	navigation	
+навигация	OPEN_NAVIGATOR	navigation	
+открой навигацию	OPEN_NAVIGATOR	navigation	
+запусти навигацию	OPEN_NAVIGATOR	navigation	
+включи навигацию	OPEN_NAVIGATOR	navigation	
+открой навигатор	OPEN_NAVIGATOR	navigation	
+запусти навигатор	OPEN_NAVIGATOR	navigation	
+включи навигатор	OPEN_NAVIGATOR	navigation	
+поехали	UNRECOGNIZED	navigation	
+домой	UNRECOGNIZED	navigation	
+работа	UNRECOGNIZED	navigation	
+включи музыку	UNRECOGNIZED	navigation	
+запусти радио	UNRECOGNIZED	navigation	
+поехали в магазин	UNRECOGNIZED	navigation	
+маршрут	UNRECOGNIZED	navigation	
+подними спойлер	打开尾翼	spoiler	
+поднять спойлер	打开尾翼	spoiler	
+выдвини спойлер	打开尾翼	spoiler	
+открой спойлер	打开尾翼	spoiler	
+подними спойлер пожалуйста	打开尾翼	spoiler	
+опусти спойлер	关闭尾翼	spoiler	
+опустить спойлер	关闭尾翼	spoiler	
+убери спойлер	关闭尾翼	spoiler	
+закрой спойлер	关闭尾翼	spoiler	
+включи авторежим спойлера	尾翼自动模式	spoiler	
+включи автоматический режим спойлера	尾翼自动模式	spoiler	
+поставь спойлер в авто	尾翼自动模式	spoiler	
+переведи спойлер в авторежим	尾翼自动模式	spoiler	
+спойлер в авто	尾翼自动模式	spoiler	
+подними спойлер и закрой окна	打开尾翼+车窗关闭	spoiler	
+спойлер	UNRECOGNIZED	spoiler	
+выключи авторежим спойлера	UNRECOGNIZED	spoiler	
+спойлер в ручной режим	UNRECOGNIZED	spoiler	
+подними спойлер наполовину	UNRECOGNIZED	spoiler	
+у него спойлер поднят	UNRECOGNIZED	spoiler	
+закрой окна и спойлер	UNRECOGNIZED	spoiler	

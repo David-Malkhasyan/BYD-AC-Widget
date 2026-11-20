@@ -37,6 +37,7 @@ data class SeatCommand(val group: SeatGroup, val level: Int)
  * Values for competitor-sourced entries verified against competitor-actions.json
  * (app/src/main/assets/competitor-actions.json). See value comments below.
  */
+@Suppress("TooManyFunctions") // one parser per command family
 object CommandTranslator {
     data class Resolved(val actionName: String, val value: Int)
 
@@ -141,6 +142,9 @@ object CommandTranslator {
         // ── Sunshade ── LIVE_VALIDATED ────────────────────────────────────────
         "遮阳帘打开" to Resolved("sunshade_open",  1),
         "遮阳帘关闭" to Resolved("sunshade_close", 2),
+        // Half-open / stop: same fid, values 3/4 from the BYD SDK, not live-validated (#362).
+        "遮阳帘打开50" to Resolved("sunshade_half", 3),
+        "遮阳帘停止"   to Resolved("sunshade_stop", 4),
 
         // ── Interior / ambient light ── LIVE_VALIDATED (dev=1023 carve-out) ──────
         "打开车内灯" to Resolved("interior_light_on",  2),
@@ -156,6 +160,10 @@ object CommandTranslator {
         "双闪打开" to Resolved("hazard_on",  1),
         "双闪关闭" to Resolved("hazard_off", 0),
 
+        // ── Rear logo light ── LIVE_VALIDATED (dev=1004 carve-out, #383) ──────
+        "后车标灯打开" to Resolved("rear_logo_light_on",  1),
+        "后车标灯关闭" to Resolved("rear_logo_light_off", 2),
+
         // ── Mirror heat = rear-window defrost ── LIVE_VALIDATED (dev=1000) ────
         "后视镜加热"   to Resolved("defrost_rear_on",  1),
         "关闭后视镜加热" to Resolved("defrost_rear_off", 0),
@@ -170,6 +178,12 @@ object CommandTranslator {
         // VehicleApiImpl routes both through HudSwitchChannel (HUD presence check + status readback).
         "打开抬头显示" to Resolved("hud_on",  1),
         "关闭抬头显示" to Resolved("hud_off", 2),
+
+        // ── Spoiler up/down (#383) ── CANDIDATE (dev=1023 carve-out, 1=up / 2=down) ──
+        // VehicleApiImpl routes both through SpoilerChannel (spoiler presence check + status readback).
+        "打开尾翼" to Resolved("spoiler_up",   1),
+        "关闭尾翼" to Resolved("spoiler_down", 2),
+        "尾翼自动模式" to Resolved("spoiler_auto_on", 1),
 
         // ── Battery warm-up (#311) ── CANDIDATE (dev=1009 carve-out, 1=on / 2=off) ──
         // VehicleApiImpl routes both through BatteryPreheatChannel (the stock toggle's checks +
@@ -339,15 +353,31 @@ object CommandTranslator {
     )
 
     /** Parse a seat heat/vent command into (group, level), or null if not a seat command. */
-    fun resolveSeat(commandString: String): SeatCommand? {
+    fun resolveSeat(commandString: String): SeatCommand? =
+        parseSeatLevel(commandString, SEAT_PREFIXES, 5)?.let { (group, lvl) -> SeatCommand(group, lvl) }
+
+    private val REAR_SEAT_HEAT_PREFIXES: Map<String, RearSeat> = mapOf(
+        "后左座椅加热" to RearSeat.LEFT,
+        "后右座椅加热" to RearSeat.RIGHT,
+    )
+
+    /** Parse a rear seat heat command (#327) into (seat, level), or null if not one. */
+    fun resolveRearSeatHeat(commandString: String): RearSeatCommand? =
+        parseSeatLevel(commandString, REAR_SEAT_HEAT_PREFIXES, RearSeatHeat.MAX_LEVEL)
+            ?.let { (seat, lvl) -> RearSeatCommand(seat, lvl) }
+
+    private val SEAT_LEVEL_REGEX = Regex("""(\d)档""")
+
+    /** "<prefix>关闭" → level 0, "<prefix>N档" → N when in 1..[maxLevel]; an optional 迪加 before. */
+    private fun <K> parseSeatLevel(commandString: String, prefixes: Map<String, K>, maxLevel: Int): Pair<K, Int>? {
         val s = commandString.removePrefix("迪加")
-        for ((prefix, group) in SEAT_PREFIXES) {
+        for ((prefix, key) in prefixes) {
             if (!s.startsWith(prefix)) continue
             val tail = s.removePrefix(prefix)
-            if (tail == "关闭") return SeatCommand(group, 0)
-            val m = Regex("""(\d)档""").matchEntire(tail) ?: return null
+            if (tail == "关闭") return key to 0
+            val m = SEAT_LEVEL_REGEX.matchEntire(tail) ?: return null
             val lvl = m.groupValues[1].toInt()
-            return if (lvl in 1..5) SeatCommand(group, lvl) else null
+            return if (lvl in 1..maxLevel) key to lvl else null
         }
         return null
     }

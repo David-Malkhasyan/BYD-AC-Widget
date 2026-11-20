@@ -1,6 +1,8 @@
 package com.bydmate.app.ui.tech
 
 import androidx.compose.ui.graphics.Color
+import com.bydmate.app.domain.BatteryThresholds
+import com.bydmate.app.domain.battery.BatteryCalibration
 import com.bydmate.app.ui.theme.AccentGreen
 import com.bydmate.app.ui.theme.SocRed
 import com.bydmate.app.ui.theme.SocYellow
@@ -42,6 +44,14 @@ internal fun cellMinVoltageColor(min: Double?): Color = when {
     else -> SocRed
 }
 
+/** Full-charge and calibration rows (#359): the level's green/yellow/red, neutral when unknown. */
+internal fun calibrationLevelColor(level: BatteryCalibration.Level?): Color = when (level) {
+    null -> TextPrimary
+    BatteryCalibration.Level.GOOD -> AccentGreen
+    BatteryCalibration.Level.WARN -> SocYellow
+    BatteryCalibration.Level.BAD -> SocRed
+}
+
 /** LFP calendar-aging cue (approved mock): <65 green, 65-85 yellow, >85 red. */
 internal fun avgSocColor(v: Int?): Color = when {
     v == null -> TextPrimary
@@ -58,10 +68,18 @@ internal fun insulationColor(mohm: Double?): Color = when {
     else -> SocRed
 }
 
-/** 12 V bus, same thresholds the Dashboard status uses. */
+/** 12 V bus, the shared [BatteryThresholds] every screen uses. */
 internal fun voltage12vColor(v: Double?): Color = when {
     v == null -> TextPrimary
-    v < 11.8 -> SocRed
-    v < 12.4 -> SocYellow
+    v < BatteryThresholds.V12_CRIT -> SocRed
+    v < BatteryThresholds.V12_WARN -> SocYellow
+    else -> AccentGreen
+}
+
+/** Battery temperature, the same rule as the home screen: cold or warm yellow, overheated red. */
+internal fun batTempColor(tempC: Int?): Color = when (tempC?.let { BatteryThresholds.batTempSeverity(it) }) {
+    null -> TextPrimary
+    2 -> SocRed
+    1 -> SocYellow
     else -> AccentGreen
 }

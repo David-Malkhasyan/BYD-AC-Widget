@@ -13,6 +13,7 @@ import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -33,7 +34,11 @@ internal interface VadHandle {
     fun empty(): Boolean
     /** Oldest queued speech segment's samples; caller must pop() after consuming it. */
     fun front(): FloatArray
+    fun frontWithStart(): Pair<Long, FloatArray> = 0L to front()
     fun pop()
+    /** Ends the speech segment in progress now, as if silence had followed (road noise, see
+     *  NoiseEndpointer). Default no-op so test fakes need not implement it. */
+    fun flush() {}
     fun close()
 }
 
@@ -85,8 +90,46 @@ private class RealVadHandle(modelManager: GigaAmModelManager) : VadHandle {
     override fun isSpeechDetected(): Boolean = vad.isSpeechDetected()
     override fun empty(): Boolean = vad.empty()
     override fun front(): FloatArray = vad.front().samples
+    override fun frontWithStart(): Pair<Long, FloatArray> = vad.front().let { it.start.toLong() to it.samples }
     override fun pop() = vad.pop()
+    override fun flush() = vad.flush()
     override fun close() = vad.release()
+}
+
+/**
+ * Road noise can hold the VAD in "speech" past the end of a phrase ([NoiseEndpointer]); this ends
+ * it by loudness against the cabin's own noise floor (quiet cabin: no change) and keeps the
+ * counters of one collection for its `vad-summary` line: whether the VAD heard speech, how much,
+ * and whether the noise floor had to end phrases. Speech and no segment is the road-noise case.
+ */
+private class NoiseGate {
+    private val endpointer = NoiseEndpointer()
+    private var heardMs = 0L
+    private var speechMs = 0L
+    private var segments = 0
+    private var flushes = 0
+
+    /** True when the phrase must be ended now: the caller flushes the VAD. */
+    fun endsPhrase(frame: ShortArray, inSpeech: Boolean): Boolean {
+        val frameMs = frame.size * 1000L / GigaAmAsrEngine.SAMPLE_RATE
+        heardMs += frameMs
+        if (inSpeech) speechMs += frameMs
+        if (endpointer.onFrame(NoiseEndpointer.rms(frame), frameMs, inSpeech) != NoiseEndpointer.Decision.FLUSH) return false
+        flushes++
+        Log.i("VoiceController", "vad end by noise floor: floor=${endpointer.floor.toInt()} loud_ms=${endpointer.lastLoudMs}")
+        Trace.event(TraceArea.VOICE, "vad-endpoint", "floor" to endpointer.floor.toInt(), "loud_ms" to endpointer.lastLoudMs)
+        return true
+    }
+
+    fun onSegment() {
+        segments++
+    }
+
+    fun summary() {
+        Trace.event(TraceArea.VOICE, "vad-summary", "heard_ms" to heardMs, "speech_ms" to speechMs,
+            "segments" to segments, "noise_flushes" to flushes, "floor" to endpointer.floor.toInt(),
+            "noisy" to endpointer.noisy)
+    }
 }
 
 /** GigaAM v3 Russian nemo-CTC recognizer segmented by a silero VAD, for the continuous voice
@@ -95,7 +138,7 @@ private class RealVadHandle(modelManager: GigaAmModelManager) : VadHandle {
  *  released in transcribe()'s finally block, so neither cancellation nor a second collect can
  *  leak or clobber a VAD handle. With [warmVad] (Android 10 head units) that per-collection VAD
  *  is built ahead of the session instead of on its path, see spareVad. */
-internal class GigaAmAsrEngine(
+internal class GigaAmAsrEngine @Suppress("LongParameterList") constructor(
     private val modelManager: GigaAmModelManager,
     private val recognizerFactory: () -> RecognizerHandle = { RealRecognizerHandle(modelManager) },
     private val vadFactory: () -> VadHandle = { RealVadHandle(modelManager) },
@@ -105,11 +148,16 @@ internal class GigaAmAsrEngine(
     private val prewarmExecutor: Executor = Executor { task ->
         thread(name = "gigaam-vad-prewarm", isDaemon = true) { task.run() }
     },
+    private val preRollMs: Int = 0,
+    // Test seam: where the known-good hashes of freshly loaded files are taken (~230 MB read).
+    private val integrityExecutor: Executor = Executor { task ->
+        thread(name = "gigaam-integrity", isDaemon = true) { task.run() }
+    },
 ) : ContinuousAsr {
 
     // A tripped guard means the last loads aborted the whole process from native code
     // (corrupt .onnx): reporting not-ready blocks every load path (warmUp and transcribe
-    // both gate on isReady) until TrackingService quarantines the files and resets it.
+    // both gate on isReady) until TrackingService has checked the files (AsrGuardRecovery) and reset it.
     override fun isReady(): Boolean = modelManager.isReady() && loadGuard?.isTripped() != true
 
     // Cached across sessions: creating the recognizer loads the 226 MiB GigaAM model from disk
@@ -130,23 +178,6 @@ internal class GigaAmAsrEngine(
         if (warmVad) isReady() && cachedRecognizer != null && spareVad != null else isReady()
 
     override fun requiresWarmBeforeListening(): Boolean = warmVad
-
-    /** Drop the cached recognizer so the next session reloads the model from disk. Called when
-     *  the model files change (re-download). The old handle is NOT closed here: an in-flight
-     *  session may still be decoding with it; the one-handle leak per re-download is bounded
-     *  and rare, and beats a use-after-free.
-     *
-     *  Not wired to a call site yet: GigaAmModelManager (the re-download/delete owner) has no
-     *  reference to this engine, and re-download is a rare, manual user action after which the
-     *  driver restarts the app anyway -- building that wiring now would be speculative (YAGNI).
-     *  The spare VAD, unused by definition, is closed. */
-    internal fun invalidateCachedRecognizer() {
-        cachedRecognizer = null
-        synchronized(this) {
-            spareVad?.let { runCatching { it.close() } }
-            spareVad = null
-        }
-    }
 
     /** Pre-builds the cached recognizer (~1.3 s cold load of the 226 MiB model) so the first
      *  PTT's transcribe() starts the mic immediately instead of after model load (field defect:
@@ -171,6 +202,7 @@ internal class GigaAmAsrEngine(
             loadGuard?.noteLoadBegin(AsrLoadGuard.ARTIFACT_RECOGNIZER)
             val handle = recognizerFactory()
             loadGuard?.noteLoadSuccess(AsrLoadGuard.ARTIFACT_RECOGNIZER)
+            recordIntegrity(model = true)
             handle.also { cachedRecognizer = it }
         }
 
@@ -181,7 +213,25 @@ internal class GigaAmAsrEngine(
         loadGuard?.noteLoadBegin(AsrLoadGuard.ARTIFACT_VAD)
         val vad = vadFactory()
         loadGuard?.noteLoadSuccess(AsrLoadGuard.ARTIFACT_VAD)
+        recordIntegrity(model = false)
         return vad
+    }
+
+    private val modelIntegrityQueued = AtomicBoolean(false)
+    private val vadIntegrityQueued = AtomicBoolean(false)
+
+    /** Once per process and file kind, off the load path: files the native loader just accepted
+     *  get their SHA-256 recorded when none is (installs older than the hashes), so a later
+     *  tripped load guard can tell a process kill from a corrupt file instead of deleting. */
+    private fun recordIntegrity(model: Boolean) {
+        val queued = if (model) modelIntegrityQueued else vadIntegrityQueued
+        if (!queued.compareAndSet(false, true)) return
+        runCatching {
+            integrityExecutor.execute {
+                runCatching { runBlocking { modelManager.recordIntegrityIfMissing(model) } }
+                    .onFailure { Log.w(TAG, "integrity record failed: ${it.message}") }
+            }
+        }
     }
 
     /** Hands the spare VAD to the calling session, which owns (and closes) it from now on. */
@@ -220,6 +270,7 @@ internal class GigaAmAsrEngine(
         val vadStartNs = System.nanoTime()
         val spare = if (warmVad) takeSpareVad() else null
         val vad = spare ?: buildVad()   // recognizer is cached -- no paired close needed on this throw path
+        val noise = NoiseGate()
         try {
             // One line per session on every car: how long the session waited for its VAD, so a
             // normal drive shows whether newer head units need the spare too. Milliseconds only.
@@ -229,10 +280,16 @@ internal class GigaAmAsrEngine(
             if (warmVad) prewarmNextVad()
             var speaking = false
             var silentMs = 0L
+            val preRoll = if (preRollMs > 0) SpeechPreRoll(preRollMs * SAMPLE_RATE / 1000) else null
             pcm.collect { shorts ->
-                vad.acceptWaveform(FloatArray(shorts.size) { i -> shorts[i] / 32768f })
-                if (vad.isSpeechDetected()) {
+                val frame = FloatArray(shorts.size) { i -> shorts[i] / 32768f }
+                vad.acceptWaveform(frame)
+                preRoll?.append(frame)
+                val inSpeech = vad.isSpeechDetected()
+                if (noise.endsPhrase(shorts, inSpeech)) vad.flush()
+                if (inSpeech) {
                     if (!speaking) {
+                        preRoll?.speechStart()
                         speaking = true
                         silentMs = 0L
                         emit(ContinuousAsrEvent.SpeechStart)
@@ -242,14 +299,19 @@ internal class GigaAmAsrEngine(
                     emit(ContinuousAsrEvent.SilenceTick(silentMs))
                 }
                 while (!vad.empty()) {
-                    val segment = vad.front()
+                    val segment = if (preRoll == null) vad.front() else {
+                        val (start, samples) = vad.frontWithStart()
+                        preRoll.finish(start, samples)
+                    }
                     vad.pop()
                     speaking = false
                     val text = recognizer.decode(segment)
+                    noise.onSegment()
                     if (text.isNotBlank()) emit(ContinuousAsrEvent.Utterance(text))
                 }
             }
         } finally {
+            noise.summary()
             vad.close()   // recognizer intentionally NOT closed: cached for the next session
         }
     }

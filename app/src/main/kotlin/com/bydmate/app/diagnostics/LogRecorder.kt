@@ -458,14 +458,26 @@ class LogRecorder internal constructor(
             "NavA11yFeed:*", "NavGuidanceHub:*", "GrantSelfHeal:*",
             // Amap-channel wave: notification lane + parser tags.
             "MediaSessionListener:*", "NaviNotifLane:*", "NaviNotifParser:*",
+            // Listener rebind (#325) and the time zone lock (#379).
+            "NotifListenerRebind:*", "TimezoneLock:*",
             // Cluster music card: what the bridge decided and wrote.
             "ClusterMusicBridge:*",
             // Blindspot wave: AVM camera probe. FidPush carries the daemon's push
             // subscription (register results, events) and the app's apply lines.
             "FidPush:*", "TechPanel:*", "CameraProbe:*", "BlindSpot:*", "CameraMonitor:*",
+            // «Диагностика»: reads of the stock car status provider and its key observers.
+            "CarStatus:*",
             // Diagnostic fid recorder (-test builds): summary only — the events go to its own
             // file in /sdcard/Download, not here.
             "FidRec:*",
+            // Manual fault-code scan: the daemon's requests, frames and outcomes (app and daemon share the tag).
+            "DtcScan:*",
+            // Tyre-sensor IDs window: reads, writes, plans, set changes (the daemon logs under DtcScan).
+            "Tpms:*",
+            // Block firmware check: taps, start, saved check per block, head-unit build, telegram (the daemon logs under DtcScan).
+            "EcuFw:*",
+            // Fault-code texts: which description tables were loaded for which car type.
+            "DtcDesc:*", "CarAutoType:*",
             // Split-screen wave: session/watchdog decisions, pill+picker overlay, widget tap.
             "SplitSessionMgr:*", "SplitOverlayCtrl:*", "SplitPillView:*",
             "WidgetController:*",
@@ -517,12 +529,19 @@ class LogRecorder internal constructor(
             // Amap broadcast failures, the cluster frame and probe, the split engines, the
             // HUD text transliterator, the knob, steering heat, the network edge monitor, the
             // rule confirm overlay, the autostart worker, the crash log and the listener grant.
-            "NavA11yExtractor:*", "HudAmapBroadcaster:*", "HudAmapClusterLoop:*", "ClusterFrameUi7:*", "ClusterProbe:*",
+            "NavA11yExtractor:*", "HudAmapBroadcaster:*", "HudAmapClusterLoop:*", "ClusterFrameUi7:*",
             "Split37Engine:*", "NativeSplitLauncher:*", "HudTextSanitizer:*", "KnobPlayPause:*",
-            "SteeringHeatChannel:*", "HudSwitchChannel:*", "BatteryPreheatChannel:*", "NetworkAvailMon:*", "ConfirmOverlay:*", "ServiceStartWorker:*",
+            "SteeringHeatChannel:*", "HudSwitchChannel:*", "SpoilerChannel:*", "RearSeatHeatChannel:*", "BatteryPreheatChannel:*", "NetworkAvailMon:*", "ConfirmOverlay:*", "ServiceStartWorker:*",
             "CrashLog:*", "MediaSessionGrant:*",
+            // Stock climate app seat writes (#327/#341): the BYD framework logs the seat and
+            // value it sets, the car's confirmation and AC device events. AbsBYDAutoDevice stays
+            // out: it floods (~20 lines/s on Leopard 3).
+            "BYDAutoSettingDevice:*", "AbsBYDAutoSettingListener:*", "BYDAutoAcDevice:*",
             // The event journal: one line per user action, decision and failure, by=#id links.
-            "Trace:*"
+            "Trace:*",
+            // Split on DiLink 3/4 (#385): who starts an activity while the split comes up, and
+            // the firmware's own multi-window controllers.
+            "ActivityTaskManager:I", "BydSmartMultiIviController:D", "BydSmartMultiController:D"
         )
     }
 }

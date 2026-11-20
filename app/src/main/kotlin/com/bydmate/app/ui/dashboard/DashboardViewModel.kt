@@ -19,10 +19,12 @@ import com.bydmate.app.data.trips.TripCounterMath
 import com.bydmate.app.data.trips.TripCounterResets
 import com.bydmate.app.data.trips.TripCounterUi
 import com.bydmate.app.data.trips.TripResetState
+import com.bydmate.app.domain.BatteryThresholds
 import com.bydmate.app.domain.battery.BatteryStateRepository
 import com.bydmate.app.domain.calculator.ConsumptionAggregator
 import com.bydmate.app.domain.calculator.ConsumptionState
 import com.bydmate.app.domain.calculator.Trend
+import com.bydmate.app.domain.cost.CostCalculator
 import com.bydmate.app.domain.cost.TariffSchedule
 import com.bydmate.app.service.TrackingService
 import com.bydmate.app.ui.trips.litersKm
@@ -52,17 +54,12 @@ enum class DashboardPeriod { TODAY, WEEK, MONTH, YEAR, ALL }
 data class DashboardUiState(
     val soc: Int? = null,
     val odometer: Double? = null,
-    val speed: Int? = null,
     val period: DashboardPeriod = DashboardPeriod.WEEK,
     val totalKm: Double = 0.0,
     val totalKwh: Double = 0.0,
     val avgConsumption: Double = 0.0,
     val totalCost: Double = 0.0,
     val tripCount: Int = 0,
-    // Legacy aliases for backward compat
-    val totalKmToday: Double = 0.0,
-    val totalKwhToday: Double = 0.0,
-    val lastTrip: TripEntity? = null,
     val recentTrips: List<TripEntity> = emptyList(),
     val isServiceRunning: Boolean = false,
     val currencySymbol: String = "BYN",
@@ -90,8 +87,6 @@ data class DashboardUiState(
     val adbVerdict: AdbVerdict? = null,
     val adbChecking: Boolean = false,
     val currentSoh: Float? = null,
-    val currentLifetimeKm: Float? = null,
-    val currentLifetimeKwh: Float? = null,
     // Widget-style stats around SOC ring (mirror FloatingWidgetView bindings).
     val insideTemp: Int? = null,
     val tripDistanceKm: Double? = null,
@@ -168,6 +163,7 @@ class DashboardViewModel @Inject constructor(
     private val tripCounterResets: TripCounterResets,
     private val vehicleKindMonitor: VehicleKindMonitor,
     private val tariffPeriodDao: TariffPeriodDao,
+    private val costCalculator: CostCalculator,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -176,7 +172,6 @@ class DashboardViewModel @Inject constructor(
     init {
         cleanupBadIdleDrainData()
         observeLiveData()
-        observeLastTrip()
         observeRecentTrips()
         loadCurrency()
         loadInsight()
@@ -282,7 +277,6 @@ class DashboardViewModel @Inject constructor(
                     val newSoc = data?.soc ?: current.soc
                     current.copy(
                         soc = newSoc,
-                        speed = data?.speed ?: current.speed,
                         odometer = data?.mileage ?: current.odometer,
                         isServiceRunning = running,
                         avgBatTemp = data?.avgBatTemp ?: current.avgBatTemp,
@@ -334,15 +328,6 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /** Observe the most recent trip from the database. */
-    private fun observeLastTrip() {
-        viewModelScope.launch {
-            tripRepository.getLastTrip().collect { trip ->
-                _uiState.update { it.copy(lastTrip = trip) }
-            }
-        }
-    }
-
     private fun observeRecentTrips() {
         viewModelScope.launch {
             tripRepository.getRecentTrips(7).collect { trips ->
@@ -387,8 +372,6 @@ class DashboardViewModel @Inject constructor(
                     avgConsumption = avg,
                     totalCost = summary.totalCost,
                     tripCount = summary.tripCount,
-                    totalKmToday = if (period == DashboardPeriod.TODAY) summary.totalKm else it.totalKmToday,
-                    totalKwhToday = if (period == DashboardPeriod.TODAY) summary.totalKwh else it.totalKwhToday,
                     periodLiters = totals?.liters,
                     periodLitersKm = totals?.litersKm,
                     periodHevKm = totals?.hevKm,
@@ -488,8 +471,6 @@ class DashboardViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 currentSoh = state.sohPercent,
-                currentLifetimeKm = state.lifetimeKm,
-                currentLifetimeKwh = state.lifetimeKwh,
             )
         }
     }
@@ -497,9 +478,8 @@ class DashboardViewModel @Inject constructor(
     private fun observeTripCounters() {
         viewModelScope.launch {
             tripCounterResets.load()
-            val tariff = settingsRepository.getTripCostTariff()
-            launch { collectTripCounter(1, tripCounterResets.state(1), tariff) }
-            launch { collectTripCounter(2, tripCounterResets.state(2), tariff) }
+            launch { collectTripCounter(1, tripCounterResets.state(1)) }
+            launch { collectTripCounter(2, tripCounterResets.state(2)) }
         }
         viewModelScope.launch {
             settingsRepository.observeTripAutoResetMode(1).collect { mode ->
@@ -519,13 +499,17 @@ class DashboardViewModel @Inject constructor(
      *  a new session invalidates the landed-row query. The DAO receives sessionStart so only
      *  rows within the current session window are subtracted from the live delta.
      *  liveWholeSession from TrackingService guards coverage: when false (baseline gap after
-     *  a restart) compute() suppresses live km/kWh to avoid unknown-window inflation. */
+     *  a restart) compute() suppresses live km/kWh to avoid unknown-window inflation.
+     *  The live trip is priced at the rate of its session start (no session: now), re-read
+     *  after every re-pricing (a tariff or charge edit). */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun collectTripCounter(n: Int, resetFlow: StateFlow<TripResetState?>, tariff: Double) {
+    private suspend fun collectTripCounter(n: Int, resetFlow: StateFlow<TripResetState?>) {
         resetFlow.filterNotNull()
             .combine(TrackingService.sessionStartedAt) { reset, sessionStart -> reset to sessionStart }
+            .combine(costCalculator.pricingVersion) { key, _ -> key }
             .flatMapLatest { (reset, sessionStart) ->
                 val landedFrom = sessionStart ?: Long.MAX_VALUE
+                val tariff = costCalculator.tripRateAt(sessionStart ?: System.currentTimeMillis())
                 combine(
                     tripRepository.observeCounterStats(reset.resetTs, landedFrom),
                     TrackingService.tripDistanceKm,
@@ -582,9 +566,11 @@ class DashboardViewModel @Inject constructor(
             Math.round((maxV!! - minV!!) * 1000.0) / 1000.0 else null
         val temp = data?.avgBatTemp ?: current.avgBatTemp
         if (!hasCellData && temp == null) return current.batteryHealthStatus
+        // Cold is a warning at most (BatteryThresholds): 4 degrees on a winter morning is no fault.
+        val tempSeverity = temp?.let { BatteryThresholds.batTempSeverity(it) } ?: 0
         return when {
-            (delta != null && delta >= 0.090) || (temp != null && (temp < 5 || temp > 50)) -> "critical"
-            (delta != null && delta >= 0.050) || (temp != null && (temp < 5 || temp > 45)) -> "warning"
+            (delta != null && delta >= 0.090) || tempSeverity == 2 -> "critical"
+            (delta != null && delta >= 0.050) || tempSeverity == 1 -> "warning"
             else -> "ok"
         }
     }
@@ -592,8 +578,8 @@ class DashboardViewModel @Inject constructor(
     private fun calculate12vStatus(voltage: Double?): String {
         if (voltage == null) return "ok"
         return when {
-            voltage < 11.8 -> "critical"
-            voltage < 12.4 -> "warning"
+            voltage < BatteryThresholds.V12_CRIT -> "critical"
+            voltage < BatteryThresholds.V12_WARN -> "warning"
             else -> "ok"
         }
     }

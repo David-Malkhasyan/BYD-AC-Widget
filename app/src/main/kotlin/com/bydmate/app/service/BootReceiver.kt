@@ -29,10 +29,15 @@ class BootReceiver : BroadcastReceiver() {
         const val PREFS_NAME = "boot_log"
         const val KEY_LAST_BOOT_TS = "last_boot_ts"
         const val KEY_LAST_BOOT_METHOD = "last_boot_method"
-        const val KEY_LAST_BOOT_ACTION = "last_boot_action"
         const val KEY_CHAIN_LOG = "chain_log"
         /** Explicit restart request from the helper daemon after the Android 10 a11y recovery. */
         const val ACTION_RECOVER_START = "com.bydmate.app.action.RECOVER_START"
+
+        // Unlock arrives only while the service is down (see onReceive), so whatever job is
+        // queued or running has not started it: replace it rather than be dropped behind a
+        // parked-restart job that skipped because the screen still read as off at car-on.
+        fun workPolicyFor(action: String?): ExistingWorkPolicy =
+            if (action == Intent.ACTION_USER_PRESENT) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -60,7 +65,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        logBootEvent(context, intent.action ?: "unknown")
+        logBootEvent(context)
 
         // Use WorkManager — guaranteed execution (like BydConnect)
         try {
@@ -69,7 +74,7 @@ class BootReceiver : BroadcastReceiver() {
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 ServiceStartWorker.WORK_NAME,
-                ExistingWorkPolicy.KEEP,
+                workPolicyFor(intent.action),
                 request
             )
             updateBootMethod(context, "WorkManager")
@@ -94,11 +99,10 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun logBootEvent(context: Context, action: String) {
+    private fun logBootEvent(context: Context) {
         try {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
                 .putLong(KEY_LAST_BOOT_TS, System.currentTimeMillis())
-                .putString(KEY_LAST_BOOT_ACTION, action)
                 .apply()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to log boot event: ${e.message}")

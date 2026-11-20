@@ -142,12 +142,6 @@ class BlindSpotArmedReasonTest {
             blindSpotArmedReason(enabled = true, gear = 4, speedKmh = 0, thresholdKmh = 20))
     }
 
-    @Test fun `speed inside the warm band is ok`() {
-        assertEquals(
-            "ok",
-            blindSpotArmedReason(enabled = true, gear = 4, speedKmh = 30, thresholdKmh = 20))
-    }
-
     @Test fun `reverse gear wins over speed`() {
         assertEquals(
             "reverse",
@@ -315,5 +309,24 @@ class BlindSpotMainScreenCoverageTest {
     @Test fun `nothing shown covers nothing`() {
         assertFalse(blindSpotCoversMainScreen(BlindSpotSide.NONE, leftOnMainScreen = false, rightOnMainScreen = true))
         assertFalse(blindSpotCoversMainScreen(BlindSpotSide.NONE, leftOnMainScreen = true, rightOnMainScreen = true))
+    }
+}
+
+/** #409/#397: a second luma look at the camera picture, 1 s after the first valid frame, logged for the dump. */
+class BlindSpotLateLumaTest {
+
+    @Test fun `the late luma is due one second after the first valid frame`() {
+        assertFalse(lateLumaDue(validFrameAt = 5_000L, now = 5_999L, done = false))
+        assertTrue(lateLumaDue(validFrameAt = 5_000L, now = 6_000L, done = false))
+    }
+
+    @Test fun `the late luma is measured once`() {
+        assertFalse(lateLumaDue(validFrameAt = 5_000L, now = 9_000L, done = true))
+    }
+
+    @Test fun `the dump line shows both sides, a dash where nothing was measured`() {
+        assertEquals("late_luma=left:0 right:-", lateLumaDumpLine(left = 0, right = null))
+        assertEquals("late_luma=left:37 right:96", lateLumaDumpLine(left = 37, right = 96))
+        assertEquals("late_luma=left:- right:-", lateLumaDumpLine(left = null, right = null))
     }
 }

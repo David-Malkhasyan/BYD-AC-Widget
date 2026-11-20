@@ -6,6 +6,7 @@ import com.bydmate.app.data.push.PushStateTrace
 import com.bydmate.app.data.vehicle.BatchReadItem
 import com.bydmate.app.data.vehicle.DumpFidsResult
 import com.bydmate.app.data.vehicle.HelperClient
+import com.bydmate.app.data.vehicle.RearSeatHeat
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -106,6 +107,66 @@ class FidCatalogManagerTest {
 
         val catalog = fromFile.catalog!!
         PushStateTrace.ADAS_STATES.forEach { assertEquals(it.symbol, it.fid, catalog.fidOf(it.symbol)) }
+    }
+
+    /** The rear seat heat gate (#327) reads its six symbols by name, so a catalog read back from the cache must still carry them. */
+    @Test fun `the cached catalog keeps the rear seat heat symbols`() = runTest {
+        val rear = """
+            Setting.SET_HAS_REAR_LEFT_SEAT_HEATING=-933232629
+            Setting.SET_HAS_REAR_RIGHT_SEAT_HEATING=-933232621
+            Setting.SET_REAR_LEFT_SEAT_HEATING_STATE=1214251019
+            Setting.SET_REAR_RIGHT_SEAT_HEATING_STATE=1214251027
+            Setting.SET_REAR_LEFT_SEAT_HEATING_STATE_SET=1125122091
+            Setting.SET_REAR_RIGHT_SEAT_HEATING_STATE_SET=1125122099
+        """.trimIndent()
+        manager(FakeHelper(listOf(DumpFidsResult.Success("$dump\n$rear")))).ensureResolved()
+
+        val fromFile = manager(FakeHelper(listOf(DumpFidsResult.BinderAbsent)))
+        fromFile.ensureResolved()
+
+        val catalog = fromFile.catalog!!
+        assertEquals(6, RearSeatHeat.SYMBOLS.size)
+        RearSeatHeat.SYMBOLS.forEach { assertTrue(it, catalog.fidOf(it) != null) }
+        assertEquals(1125122091, catalog.fidOf("Setting.SET_REAR_LEFT_SEAT_HEATING_STATE_SET"))
+    }
+
+    /** #443: a firmware that dumps only the flat namespace is installed and cached with nested keys. */
+    @Test fun `a flat-only dump is installed and cached with nested keys`() = runTest {
+        val flat = javaClass.classLoader!!.getResource("fid-catalog-yuanpro-flat.txt")!!.readText()
+        val subject = manager(FakeHelper(listOf(DumpFidsResult.Success(flat))))
+        subject.ensureResolved()
+
+        assertTrue(subject.resolveStatus, subject.resolveStatus.contains("installed"))
+        assertEquals(1033543720, subject.catalog!!.fidOf("Statistic.STATISTIC_ELEC_PERCENTAGE"))
+
+        val cache = java.io.File(
+            ApplicationProvider.getApplicationContext<android.content.Context>().filesDir,
+            "fid-catalog.txt",
+        ).readText()
+        assertTrue(cache.contains("Statistic.STATISTIC_ELEC_PERCENTAGE=1033543720"))
+        assertFalse(cache.contains("BYDAutoFeatureIds."))
+
+        val fromFile = manager(FakeHelper(listOf(DumpFidsResult.BinderAbsent)))
+        fromFile.ensureResolved()
+        assertEquals(1033543720, fromFile.catalog!!.fidOf("Statistic.STATISTIC_ELEC_PERCENTAGE"))
+    }
+
+    /** #429: the battery current probe reads these three by name, so a cached catalog must keep them. */
+    @Test fun `the cached catalog keeps the battery current candidates`() = runTest {
+        val candidates = """
+            Charging.CHARGING_CHARGE_CURRENT_NOT_CONVERT=-1002438632
+            Gb.GB_BATTERY_CCURRENT=677380120
+            Instrument.INSTRUMENT_PSPK_BATTERY_CURRENT=1298153504
+        """.trimIndent()
+        manager(FakeHelper(listOf(DumpFidsResult.Success("$dump\n$candidates")))).ensureResolved()
+
+        val cache = java.io.File(
+            ApplicationProvider.getApplicationContext<android.content.Context>().filesDir,
+            "fid-catalog.txt",
+        ).readText()
+        assertTrue(cache.contains("Charging.CHARGING_CHARGE_CURRENT_NOT_CONVERT=-1002438632"))
+        assertTrue(cache.contains("Gb.GB_BATTERY_CCURRENT=677380120"))
+        assertTrue(cache.contains("Instrument.INSTRUMENT_PSPK_BATTERY_CURRENT=1298153504"))
     }
 
     /**

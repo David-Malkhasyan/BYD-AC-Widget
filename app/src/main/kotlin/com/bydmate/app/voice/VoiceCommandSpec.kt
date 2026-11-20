@@ -59,6 +59,12 @@ object VoiceCatalog {
         VoiceCommandSpec(ON, AC_RECIRC_OUTER) { "外循环" },
         VoiceCommandSpec(ON, DEFROST_FRONT) { "吹前挡" },
         VoiceCommandSpec(OFF, DEFROST_FRONT) { "关闭吹前挡" },
+        // Climate — blow direction (ac_wind_mode 1..5)
+        VoiceCommandSpec(SET, AC_WIND_FACE) { "吹面" },
+        VoiceCommandSpec(SET, AC_WIND_FACE_FEET) { "吹面吹脚" },
+        VoiceCommandSpec(SET, AC_WIND_FEET) { "吹脚" },
+        VoiceCommandSpec(SET, AC_WIND_FEET_WINDSHIELD) { "吹脚除霜" },
+        VoiceCommandSpec(SET, AC_WIND_WINDSHIELD) { "除霜" },
         // Seats — heat
         VoiceCommandSpec(HEAT_1, SEAT_DRIVER_HEAT) { "主驾座椅加热1档" },
         VoiceCommandSpec(HEAT_2, SEAT_DRIVER_HEAT) { "主驾座椅加热2档" },
@@ -113,6 +119,13 @@ object VoiceCatalog {
         // Trunk
         VoiceCommandSpec(OPEN, TRUNK) { "开后备箱" },
         VoiceCommandSpec(CLOSE, TRUNK) { "关后备箱" },
+        // Front trunk: opening is speed gated by the dispatcher
+        VoiceCommandSpec(OPEN, FRONT_TRUNK) { "前备箱打开" },
+        VoiceCommandSpec(CLOSE, FRONT_TRUNK) { "前备箱关闭" },
+        // Spoiler (#383): OPEN is up, CLOSE is down; the car answers "not equipped" without one
+        VoiceCommandSpec(OPEN, SPOILER) { "打开尾翼" },
+        VoiceCommandSpec(CLOSE, SPOILER) { "关闭尾翼" },
+        VoiceCommandSpec(ON, SPOILER_AUTO) { "尾翼自动模式" },
         // Drive mode (terrain modes speed-gated to 15 km/h by the dispatcher)
         VoiceCommandSpec(SET, DRIVE_ECO) { "ECO模式" },
         VoiceCommandSpec(SET, DRIVE_NORMAL) { "普通模式" },

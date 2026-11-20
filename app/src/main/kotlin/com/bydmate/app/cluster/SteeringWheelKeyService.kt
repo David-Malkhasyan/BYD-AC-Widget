@@ -16,8 +16,15 @@ import com.bydmate.app.diagnostics.TraceArea
 import com.bydmate.app.media.KnobPlayPause
 import com.bydmate.app.navdata.NavA11yFeed
 import com.bydmate.app.service.TrackingService
+import com.bydmate.app.ui.widget.toggleSplitByUser
+import com.bydmate.app.util.appLocalizedContext
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * False for a key that types text (digits, letters, punctuation, numpad): the a11y filter also
@@ -52,6 +59,9 @@ class SteeringWheelKeyService : AccessibilityService() {
     private var cachedEntryPoint: ClusterEntryPoint? = null
     // Start of the companion window of the key in capturedKey (isLearnCompanion, learnWindowAnchor).
     private var learnCaptureAtMs = 0L
+    // The split key's toggle runs here; the start itself runs in SplitSessionManager's own scope.
+    private val keyScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val splitKeyGuard = SplitKeyBusyGuard()
     private val prefs: SharedPreferences by lazy {
         applicationContext.getSharedPreferences(ClusterProjectionManager.PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -76,6 +86,8 @@ class SteeringWheelKeyService : AccessibilityService() {
             "streak" to prefs.getInt(com.bydmate.app.service.A11yRecoveryGate.KEY_FAIL_STREAK, 0),
             "service_running" to TrackingService.isRunning.value)
         com.bydmate.app.service.A11yRecoveryGate.markBound(prefs)  // ends the Android 10 recovery streak
+        // ADB restore: the wireless-debugging dialog may already be up from before this bind.
+        WifiDebuggingDialogAutoAllow.onServiceConnected(this, applicationContext)
         // Android 10 (DiLink 3.0/4.0) a11y recovery: the daemon force-stops our package and the
         // framework re-binds this service, which brings the process back without TrackingService.
         // The daemon also broadcasts RECOVER_START, but this path does not depend on it. Idempotent
@@ -98,8 +110,8 @@ class SteeringWheelKeyService : AccessibilityService() {
         // Voice check: runs after learn-mode, before star decision. Returns true only when voice is
         // enabled and the configured voice key is pressed (isDown). Non-voice keys fall through.
         val voicePrefs = applicationContext.getSharedPreferences("voice", Context.MODE_PRIVATE)
-        val voiceEnabled = voicePrefs.getBoolean("voice_enabled", false)
-        val voiceKey = voicePrefs.getInt("voice_keycode", DEFAULT_VOICE_KEYCODE)
+        val voiceEnabled = voicePrefs.getBoolean(SettingsRepository.KEY_VOICE_ENABLED, false)
+        val voiceKey = voicePrefs.getInt(SettingsRepository.KEY_VOICE_KEYCODE, DEFAULT_VOICE_KEYCODE)
         val voiceCompanions = voiceCompanionsFromCsv(
             voicePrefs.getString(SettingsRepository.KEY_VOICE_COMPANIONS, null))
         when (voiceDecision(event.keyCode, isDown, voiceEnabled, voiceKey, voiceCompanions)) {
@@ -135,9 +147,9 @@ class SteeringWheelKeyService : AccessibilityService() {
                 traced(event, "cluster_toggle")
             }
             StarDecision.CONSUME -> true
-            // Automation rules bound to a key run LAST: projection, voice and the knob keep
-            // priority over a user assignment, and the settings UI warns about occupied keys.
-            StarDecision.PASS_THROUGH -> when (
+            // Automation rules bound to a key run LAST: projection, voice, the knob and the split
+            // key keep priority over a user assignment, and the settings UI warns about occupied keys.
+            StarDecision.PASS_THROUGH -> splitKeyVerdict(event, isDown) ?: when (
                 steeringKeyDecision(event.keyCode, isDown, TrackingService.steeringKeyAssigned(event.keyCode))
             ) {
                 SteeringKeyDecision.FIRE -> {
@@ -156,6 +168,27 @@ class SteeringWheelKeyService : AccessibilityService() {
                     false
                 }
             }
+        }
+    }
+
+    /** The split key: after voice, knob and projection, before the automation rules. Null = not it. */
+    private fun splitKeyVerdict(event: KeyEvent, isDown: Boolean): Boolean? {
+        val split = entryPoint().splitPreferences()
+        return when (splitKeyDecision(event.keyCode, isDown, event.repeatCount,
+            split.isFeatureEnabled(), split.getSteeringKeyCode(), split.getSteeringKeyCompanions())) {
+            SplitKeyDecision.TOGGLE -> {
+                val keyCode = event.keyCode
+                keyScope.launch {
+                    // A press while the previous start/exit still runs would decide on a stale state.
+                    val ran = splitKeyGuard.runIfIdle {
+                        toggleSplitByUser(applicationContext.appLocalizedContext(), fromWidget = false)
+                    }
+                    if (!ran) Log.i(TAG, "split key $keyCode: ignored, previous toggle still running")
+                }
+                traced(event, "split_toggle")
+            }
+            SplitKeyDecision.CONSUME -> true
+            SplitKeyDecision.PASS_THROUGH -> null
         }
     }
 
@@ -269,7 +302,8 @@ class SteeringWheelKeyService : AccessibilityService() {
             // (new BSSID each time), and nobody but us can press Allow before ADB is back.
             if (WifiDebuggingDialogAutoAllow.isDialog(event.packageName, event.className)) {
                 WifiDebuggingDialogAutoAllow.onDialogShown(
-                    this, applicationContext, event, AdbRestorePreferencesImpl(applicationContext).isEnabled())
+                    this, applicationContext, event, AdbRestorePreferencesImpl(applicationContext).isEnabled(),
+                    pkg = event.packageName, cls = event.className)
             }
         }
     }
@@ -289,6 +323,7 @@ class SteeringWheelKeyService : AccessibilityService() {
     override fun onDestroy() {
         instance = null
         isConnected = false
+        keyScope.cancel()
         Trace.event(TraceArea.APP, "a11y-destroyed")
         super.onDestroy()
     }

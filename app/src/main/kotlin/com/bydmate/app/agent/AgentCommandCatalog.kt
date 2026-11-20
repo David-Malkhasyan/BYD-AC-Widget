@@ -111,6 +111,8 @@ object AgentCommandCatalog {
         Cmd("light_drl_off", "выключить дневные ходовые огни", { "关闭日行灯" }),
         Cmd("hazard_on", "включить аварийку (аварийную сигнализацию)", { "双闪打开" }),
         Cmd("hazard_off", "выключить аварийку", { "双闪关闭" }),
+        Cmd("rear_logo_light_on", "включить подсветку заднего логотипа", { "后车标灯打开" }),
+        Cmd("rear_logo_light_off", "выключить подсветку заднего логотипа", { "后车标灯关闭" }),
         Cmd("light_interior_on", "включить плафон света в салоне", { "打开车内灯" }),
         Cmd("light_interior_off", "выключить плафон света в салоне", { "关闭车内灯" }),
         // HUD (projection on the windshield; the cluster projection is set_cluster_projection)
@@ -131,12 +133,24 @@ object AgentCommandCatalog {
         Cmd("sunroof_comfort", "открыть люк в комфортное положение (без сквозняка)", { "天窗舒适打开" }),
         Cmd("sunshade_open", "открыть шторку люка", { "遮阳帘打开" }),
         Cmd("sunshade_close", "закрыть шторку люка", { "遮阳帘关闭" }),
+        Cmd("sunshade_half", "открыть шторку люка наполовину", { "遮阳帘打开50" }),
+        Cmd("sunshade_stop", "остановить движение шторки люка", { "遮阳帘停止" }),
         // Trunk (rear tailgate)
         Cmd("trunk_open", "открыть задний багажник", { "开后备箱" }),
         Cmd("trunk_close", "закрыть задний багажник", { "关后备箱" }),
         // Front trunk (powered front storage; open is speed-0 gated by the dispatcher)
         Cmd("front_trunk_open", "открыть передний багажник (только на стоянке)", { "前备箱打开" }),
         Cmd("front_trunk_close", "закрыть передний багажник", { "前备箱关闭" }),
+        // Spoiler (#383; cars with a powered spoiler only, the channel answers "not equipped"
+        // elsewhere). Down and auto are refused while the car stands with the spoiler up.
+        Cmd("spoiler_up", "поднять спойлер (после этого спойлер, скорее всего, в ручном режиме)", { "打开尾翼" }),
+        Cmd("spoiler_down", "опустить спойлер (только на ходу; после этого спойлер, скорее всего, в ручном режиме)", { "关闭尾翼" }),
+        Cmd(
+            "spoiler_auto_on",
+            "включить авторежим спойлера (только на ходу; отдельной команды «выключить авторежим» нет: " +
+                "в ручной режим переводит spoiler_up или spoiler_down)",
+            { "尾翼自动模式" },
+        ),
         // Fridge (center-console icebox)
         Cmd("fridge_cool", "холодильник: охлаждение до N градусов", { n -> "冰箱制冷${n}度" }, -6..6),
         Cmd("fridge_heat", "холодильник: подогрев до N градусов", { n -> "冰箱制热${n}度" }, 35..50),

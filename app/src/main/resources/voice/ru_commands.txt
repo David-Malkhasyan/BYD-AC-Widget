@@ -29,6 +29,9 @@
 #                       the phrase to the agent
 #   MUSIC               Yandex Music's personal mix («Моя волна»), as the agent's play_music
 #                       starts it with no query
+#   NAVIGATE SHORTCUT   a route to Home or Work (home, work), as the agent routes «домой», started
+#   ROUTE SHORTCUT      the same route, only built: the driver starts it
+#   OPEN_NAVIGATOR      the navigator chosen for routes, launched as the agent's launch_app does
 # Every template phrase has a row in app/src/test/resources/voice/ru_commands_golden.tsv.
 
 # ---- Verbs ---------------------------------------------------------------------------------
@@ -236,6 +239,15 @@ solo климат (в автомате|на авто) => 自动空调 + 空调�
 rule windshield: лобового [стекла]|переднего стекла|стекла
 <on> обдув <windshield> => 吹前挡
 <off> обдув <windshield> => 关闭吹前挡
+# Blow direction (ac_wind_mode 1..5). "на стекло" is the direction; "обдув стекла"/"лобового"
+# above is the windshield defrost button, a different fid.
+list airflow: (в|на) лицо => 吹面 ;
+    (в|на) лицо и [(в|на)] ноги => 吹面吹脚 ;
+    (в|на) ноги => 吹脚 ;
+    (в|на) ноги и [на] стекло => 吹脚除霜 ;
+    на (стекло|лобовое [стекло]) => 除霜
+(<on>|<set>) обдув {airflow} => {airflow}
+solo обдув {airflow} => {airflow}
 
 range temp: 16..33
 rule deg: градус|градуса|градусов
@@ -284,6 +296,16 @@ rule yandex_music: яндекс (музыку|музыка|мьюзик)
 (включи|запусти|открой|поставь) <yandex_music> => MUSIC
 solo <yandex_music> => MUSIC
 
+# ---- Navigation ----------------------------------------------------------------------------
+# Home and Work only with a verb or «маршрут»: a bare «домой» or «поехали» says too little.
+
+list home_work: домой => home ; на работу => work
+(поехали|едем) {home_work} => NAVIGATE {home_work}
+(проложи маршрут|построй маршрут) {home_work} => ROUTE {home_work}
+solo маршрут {home_work} => ROUTE {home_work}
+(открой|запусти|включи) (навигацию|навигатор) => OPEN_NAVIGATOR
+solo навигация => OPEN_NAVIGATOR
+
 # ---- Locks and trunk -----------------------------------------------------------------------
 # "закрой дверь" said to a passenger is not addressed to the car: only "машину" and the lock
 # verbs lock and unlock.
@@ -295,6 +317,25 @@ solo <yandex_music> => MUSIC
 rule trunk: [задний] (багажник|багажнек)
 <open_lid> <trunk> => 开后备箱
 <close_lid> <trunk> => 关后备箱
+# The front trunk opens only on a standing car: the dispatcher's speed gate holds it.
+rule frunk: передний (багажник|багажнек)|(багажник|багажнек) спереди
+<open_lid> <frunk> => 前备箱打开
+<close_lid> <frunk> => 前备箱关闭
+
+# ---- Spoiler -------------------------------------------------------------------------------
+# "подними" and "опусти" are the spoiler's own up and down here, the opposite of what they mean
+# for a window, so the window verb rules are not used. A car without a powered spoiler answers
+# that it has none; a standing car with the spoiler up refuses down and auto. There is no
+# "auto off": that phrase goes to the agent, which explains that up or down switches to manual.
+
+rule spoiler_up: подними|поднять|поднимите|выдвини|выдвинуть|открой|открыть
+rule spoiler_down: опусти|опустить|опустите|убери|убрать|закрой|закрыть
+rule spoiler_auto: авторежим|авто режим|автоматический режим
+<spoiler_up> спойлер => 打开尾翼
+<spoiler_down> спойлер => 关闭尾翼
+<on> <spoiler_auto> спойлера => 尾翼自动模式
+(поставь|переведи) спойлер в (авто|<spoiler_auto>) => 尾翼自动模式
+solo спойлер в (авто|<spoiler_auto>) => 尾翼自动模式
 
 # ---- Lights --------------------------------------------------------------------------------
 

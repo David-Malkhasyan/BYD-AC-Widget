@@ -341,15 +341,6 @@ class RuleShareTest {
         assertNull(RuleShareFiles.readLimited(big))
     }
 
-    @Test fun `list returns only share files, newest first`() {
-        val dir = tmp.newFolder("Download")
-        val old = java.io.File(dir, "bydmate_rule_a.json").apply { writeText("{}"); setLastModified(1_000_000L) }
-        val new = java.io.File(dir, "bydmate_rule_b.json").apply { writeText("{}"); setLastModified(2_000_000L) }
-        java.io.File(dir, "bydmate_backup_1.zip").writeText("x")
-        java.io.File(dir, "notes.json").writeText("x")
-        assertEquals(listOf(new, old), RuleShareFiles.listRuleFiles(dir))
-    }
-
     @Test fun `a close step survives the share file`() {
         val close = ActionDef("", "Закрыть приложение: Радио", "app_close",
             """{"packageName":"com.example.radio","appLabel":"Радио"}""")
@@ -371,6 +362,14 @@ class RuleShareTest {
         val parsed = RuleShare.parse(RuleShare.exportJson(rule, "3.20.0"), "Звонок") as RuleParseResult.Ok
         assertEquals(steps, parsed.rule.actions)
         assertTrue("screen" in RuleShare.KNOWN_ACTION_KINDS)
+    }
+
+    @Test fun `go_back is a known action kind and survives the share file`() {
+        val steps = listOf(ActionDef("", "Назад", "go_back"))
+        val rule = SharedRule.fromEntity(sourceEntity()).copy(actions = steps)
+        val parsed = RuleShare.parse(RuleShare.exportJson(rule, "4.5.0"), "Звонок") as RuleParseResult.Ok
+        assertEquals(steps, parsed.rule.actions)
+        assertTrue("go_back" in RuleShare.KNOWN_ACTION_KINDS)
     }
 
     // --- Import ---

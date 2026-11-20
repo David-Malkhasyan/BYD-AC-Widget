@@ -19,6 +19,7 @@ import com.bydmate.app.service.A11yRecoveryGate
 import com.bydmate.app.split.SplitPreferencesImpl
 import com.bydmate.app.util.AppStrings
 import com.bydmate.app.voice.AudioCapture
+import com.bydmate.app.voice.AutoVoiceDuck
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -143,7 +144,8 @@ class BackupManager(
             ),
             // Media volume saved while the voice agent speaks: another car would get it raised
             // back to the source device's level.
-            "voice" to setOf(AudioCapture.KEY_PRE_DUCK_VOLUME),
+            // Same for the firmware voice duck marker and its last status (#353).
+            "voice" to setOf(AudioCapture.KEY_PRE_DUCK_VOLUME, AutoVoiceDuck.KEY_MARKER, AutoVoiceDuck.KEY_LAST),
         )
 
         internal fun isExcluded(patterns: Set<String>, key: String): Boolean =
@@ -476,7 +478,7 @@ class BackupManager(
      *    WAL file size (TRUNCATE leaves it at 0 bytes) and retried.
      */
     private fun <T> withLiveSnapshot(block: (ByteArray) -> T): T {
-        val dbFile = context.getDatabasePath("bydmate.db")
+        val dbFile = context.getDatabasePath(AppDatabase.FILE_NAME)
         val walFile = File(dbFile.parentFile, "bydmate.db-wal")
         val supportDb = appDatabase.openHelper.writableDatabase
         for (attempt in 1..3) {
@@ -581,7 +583,7 @@ class BackupManager(
             // 2d. Write the DB bytes to a temp file and verify it is a real, intact SQLite
             //     database. openDatabase rejects a non-SQLite file; quick_check catches
             //     structural corruption. Bad file -> throw, temp deleted, live DB untouched.
-            val targetDbFile = context.getDatabasePath("bydmate.db")
+            val targetDbFile = context.getDatabasePath(AppDatabase.FILE_NAME)
             val dbDir = targetDbFile.parentFile
             dbDir?.mkdirs()
             val tmpDbFile = File(dbDir, "bydmate.db.restore.tmp")
@@ -644,7 +646,7 @@ class BackupManager(
      * [prefsMap] null = SharedPreferences stay as they are.
      */
     private fun swapIn(dbFile: File, prefsMap: Map<String, Map<String, Any?>>?) {
-        val targetDbFile = context.getDatabasePath("bydmate.db")
+        val targetDbFile = context.getDatabasePath(AppDatabase.FILE_NAME)
         val dbDir = targetDbFile.parentFile
 
         // Mark the next start as the first one after a restore BEFORE anything is replaced,

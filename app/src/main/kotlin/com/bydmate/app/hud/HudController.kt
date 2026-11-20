@@ -221,7 +221,7 @@ class HudController @Inject constructor(
         when {
             !HudArming.leftover(prefs()) -> true
             retry -> arm.retryDeferred()
-            else -> arm.disarmLeftover(guided = false)?.screenDeferred != true
+            else -> arm.disarmLeftover()?.screenDeferred != true
         }
     }.getOrElse {
         Log.w(TAG, "hud disarm: reason=leftover failed: ${it.javaClass.simpleName}")
@@ -369,6 +369,10 @@ class HudController @Inject constructor(
         // Fail closed: a probe that failed for any reason but "not installed" may hide a working gateway.
         if (clusterPathAvailable()) {
             amapCluster = HudAmapClusterLoop(context, prefs()).also { it.start(scope) }
+            // Navigator posts no hint notifications while it is on screen: the card follows the
+            // window read then (#325). A tree read only, no helper calls.
+            NavA11yFeed.enabled = true
+            NavGuidanceHub.setGatewaylessClusterPath(true)
             NavGuidanceHub.hudWay = NavGuidanceHub.WAY_AMAP_CLUSTER
             setStatus(Status.CLUSTER_ONLY)
             Log.i(TAG, "SOME/IP gateway absent; hints go to the cluster card via the Amap adapter")
@@ -391,7 +395,7 @@ class HudController @Inject constructor(
         if (!helperBootstrap.ensureRunning()) return
         runCatching {
             HudWayChannels.clearCanLeftover(HudCanChannel(helperClient), prefs())
-            HudArming(helperClient, prefs()).disarmLeftover(guided = false)
+            HudArming(helperClient, prefs()).disarmLeftover()
         }.onFailure {
             if (it is CancellationException) throw it
             Log.w(TAG, "hud disarm: reason=leftover failed: ${it.javaClass.simpleName}")
@@ -471,6 +475,7 @@ class HudController @Inject constructor(
             bridge = null
             amapCluster?.stop()
             amapCluster = null
+            NavGuidanceHub.setGatewaylessClusterPath(false)
             NavGuidanceHub.hudWay = 0
             setStatus(Status.OFF)
             // NavGuidanceHub is intentionally NOT reset: the voice agent keeps using it.

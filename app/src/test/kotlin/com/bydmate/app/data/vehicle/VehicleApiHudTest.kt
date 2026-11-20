@@ -3,7 +3,6 @@ package com.bydmate.app.data.vehicle
 import com.bydmate.app.data.autoservice.AutoserviceClient
 import com.bydmate.app.data.local.dao.VehicleWriteLogDao
 import com.bydmate.app.data.local.entity.VehicleWriteLogEntity
-import com.bydmate.app.data.nativestack.ParsReader
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -31,7 +30,7 @@ class VehicleApiHudTest {
     private val audit = mutableListOf<VehicleWriteLogEntity>()
     private val dao = mockk<VehicleWriteLogDao> { coEvery { insert(capture(audit)) } returns Unit }
     private val impl = VehicleApiImpl(
-        mockk<ParsReader>(relaxed = true), mockk<AutoserviceClient>(relaxed = true), helper, allowlist,
+        mockk<AutoserviceClient>(relaxed = true), helper, allowlist,
         dao, seatStore, windowStore,
     )
 
@@ -102,7 +101,7 @@ class VehicleApiHudTest {
         coEvery { helper.writeStatus(1023, 1276174371, 1) } returns 1
         coEvery { helper.read(1023, 951058460, any()) } returns 65535L
         val err = impl.dispatch("打开抬头显示").exceptionOrNull()
-        assertTrue("got $err", err is VehicleWriteError.HelperUnreachable)
+        assertTrue("got $err", err is VehicleWriteError.Unconfirmed)
         assertEquals("verdict=unconfirmed read=65535", verdictRow().error)
     }
 }

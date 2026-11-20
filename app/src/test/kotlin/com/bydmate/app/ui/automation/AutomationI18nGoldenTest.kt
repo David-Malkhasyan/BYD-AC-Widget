@@ -6,6 +6,7 @@ import com.bydmate.app.data.automation.ActionDispatcher
 import com.bydmate.app.data.local.LocalePreferences
 import com.bydmate.app.util.appLocalizedContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -89,6 +90,9 @@ class AutomationI18nGoldenTest {
         "氛围灯关闭" to Triple("Амбиент выкл", "Ambient Light Off", "氛围灯关"),
         "打开日行灯" to Triple("ДХО вкл", "DRL On", "日行灯开"),
         "关闭日行灯" to Triple("ДХО выкл", "DRL Off", "日行灯关"),
+        // #383
+        "后车标灯打开" to Triple("Подсветка заднего логотипа: вкл", "Rear logo light: on", "后车标灯：开"),
+        "后车标灯关闭" to Triple("Подсветка заднего логотипа: выкл", "Rear logo light: off", "后车标灯：关"),
         "双闪打开" to Triple("Аварийка: включить", "Hazard lights: on", "打开双闪"),
         "双闪关闭" to Triple("Аварийка: выключить", "Hazard lights: off", "关闭双闪"),
         "打开车内灯" to Triple("Салонный свет вкл", "Interior Light On", "车内灯开"),
@@ -103,14 +107,19 @@ class AutomationI18nGoldenTest {
         "天窗打开50" to Triple("Люк открыть 50%", "Sunroof Open 50%", "天窗半开"),
         "天窗打开0" to Triple("Люк закрыть", "Sunroof Close", "天窗关闭"),
         "遮阳帘打开" to Triple("Шторка открыть", "Sunshade Open", "遮阳帘打开"),
+        "遮阳帘打开50" to Triple("Шторка открыть 50%", "Sunshade Open 50%", "遮阳帘半开"),
         "遮阳帘关闭" to Triple("Шторка закрыть", "Sunshade Close", "遮阳帘关闭"),
         "天窗停止" to Triple("Люк остановить", "Sunroof Stop", "天窗停止"),
+        "遮阳帘停止" to Triple("Шторка остановить", "Sunshade Stop", "遮阳帘停止"),
         "天窗通风" to Triple("Люк наклон", "Sunroof Tilt", "天窗通风"),
         "天窗舒适打开" to Triple("Люк комфорт", "Sunroof Comfort", "天窗舒适打开"),
         "开后备箱" to Triple("Открыть багажник", "Open Trunk", "打开后备箱"),
         "关后备箱" to Triple("Закрыть багажник", "Close Trunk", "关闭后备箱"),
         "前备箱打开" to Triple("Открыть передний багажник", "Open Front Trunk", "打开前备箱"),
         "前备箱关闭" to Triple("Закрыть передний багажник", "Close Front Trunk", "关闭前备箱"),
+        "打开尾翼" to Triple("Спойлер: поднять", "Spoiler: raise", "升起尾翼"),
+        "关闭尾翼" to Triple("Спойлер: опустить", "Spoiler: lower", "降下尾翼"),
+        "尾翼自动模式" to Triple("Спойлер: включить авторежим", "Spoiler: automatic mode on", "尾翼自动模式"),
         "冰箱制冷" to Triple("Холодильник: охлаждение", "Fridge Cool", "冰箱制冷"),
         "冰箱制热" to Triple("Холодильник: обогрев", "Fridge Heat", "冰箱制热"),
         "冰箱关闭" to Triple("Холодильник: выкл", "Fridge Off", "冰箱关闭"),
@@ -180,6 +189,8 @@ class AutomationI18nGoldenTest {
         "氛围灯关闭" to Triple("Свет", "Light", "灯光"),
         "打开日行灯" to Triple("Свет", "Light", "灯光"),
         "关闭日行灯" to Triple("Свет", "Light", "灯光"),
+        "后车标灯打开" to Triple("Свет", "Light", "灯光"),
+        "后车标灯关闭" to Triple("Свет", "Light", "灯光"),
         "双闪打开" to Triple("Свет", "Light", "灯光"),
         "双闪关闭" to Triple("Свет", "Light", "灯光"),
         "打开车内灯" to Triple("Свет", "Light", "灯光"),
@@ -195,6 +206,8 @@ class AutomationI18nGoldenTest {
         "天窗打开0" to Triple("Люк", "Sunroof", "天窗"),
         "遮阳帘打开" to Triple("Люк", "Sunroof", "天窗"),
         "遮阳帘关闭" to Triple("Люк", "Sunroof", "天窗"),
+        "遮阳帘打开50" to Triple("Люк", "Sunroof", "天窗"),
+        "遮阳帘停止" to Triple("Люк", "Sunroof", "天窗"),
         "天窗停止" to Triple("Люк", "Sunroof", "天窗"),
         "天窗通风" to Triple("Люк", "Sunroof", "天窗"),
         "天窗舒适打开" to Triple("Люк", "Sunroof", "天窗"),
@@ -202,6 +215,9 @@ class AutomationI18nGoldenTest {
         "关后备箱" to Triple("Кузов", "Body", "车身"),
         "前备箱打开" to Triple("Кузов", "Body", "车身"),
         "前备箱关闭" to Triple("Кузов", "Body", "车身"),
+        "打开尾翼" to Triple("Кузов", "Body", "车身"),
+        "关闭尾翼" to Triple("Кузов", "Body", "车身"),
+        "尾翼自动模式" to Triple("Кузов", "Body", "车身"),
         "冰箱制冷" to Triple("Холодильник", "Fridge", "冰箱"),
         "冰箱制热" to Triple("Холодильник", "Fridge", "冰箱"),
         "冰箱关闭" to Triple("Холодильник", "Fridge", "冰箱"),
@@ -390,6 +406,18 @@ class AutomationI18nGoldenTest {
         "LightLow" to listOf("0" to "Выкл", "1" to "Вкл"),
         "DRL" to listOf("0" to "Нет", "1" to "Вкл", "2" to "Выкл"),
     )
+
+    @Test fun sunshade_half_and_stop_are_in_the_action_catalog() {
+        for (cmd in listOf("遮阳帘打开50", "遮阳帘停止")) {
+            assertTrue("$cmd missing", ACTION_COMMANDS.any { it.command == cmd })
+        }
+    }
+
+    @Test fun rear_logo_light_actions_are_in_the_action_catalog() {
+        for (cmd in listOf("后车标灯打开", "后车标灯关闭")) {
+            assertTrue("$cmd missing", ACTION_COMMANDS.any { it.command == cmd })
+        }
+    }
 
     @Test fun action_names_and_categories_match_baseline_all_locales() {
         // The «… переключить» entries carry no command of their own; their names are built
